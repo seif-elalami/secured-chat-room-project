@@ -94,7 +94,7 @@ export const createRoom = async (req, res) => {
     console.log("📨 Create Room Request:", req.body);
     console.log("👤 User from auth:", req.user);
 
-    const { users, title, isGroup } = req.body;
+    const { users, title, isGroup } = req.body || {};
     const userId = req.user?.userId || req.user?.id || req.user?._id;
 
     // 🔍 Validate participants
@@ -306,7 +306,7 @@ export const createRoom = async (req, res) => {
 
 export const createDirectRoom = async (req, res) => {
   try {
-    const { otherUserId } = req.body;
+    const { otherUserId } = req.body || {};
     const userId = req.user?.userId || req.user?.id || req.user?._id;
 
     if (!otherUserId) {

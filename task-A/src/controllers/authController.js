@@ -5,6 +5,14 @@ import User from "../models/User.js";
 
 dotenv.config();
 
+const getJwtSecret = () => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not configured");
+  }
+
+  return process.env.JWT_SECRET;
+};
+
 /**
  * Generates a JSON Web Token (JWT) for authenticated users.
  * Token is valid for 7 days and contains user ID and username.
@@ -23,7 +31,7 @@ dotenv.config();
 const generateToken = (user) => {
   return jwt.sign(
     { userId: user._id, username: user.username },
-    process.env.JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: "7d" } // Token valid for 7 days
   );
 };
@@ -104,6 +112,8 @@ const generateToken = (user) => {
 
 export const registerUser = async (req, res) => {
   try {
+    getJwtSecret();
+
     const { username, email, password, phone, firstName, lastName } = req.body;
 
     // Validate required fields
@@ -159,6 +169,12 @@ export const registerUser = async (req, res) => {
     });
   } catch (error) {
     console. error("Register Error:", error);
+
+    if (error.message === "JWT_SECRET is not configured") {
+      return res.status(500).json({
+        message: "Server authentication is not configured",
+      });
+    }
 
     // Handle Mongo duplicate key errors
     if (error.code === 11000) {
@@ -237,6 +253,8 @@ export const registerUser = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   try {
+    getJwtSecret();
+
     const { username, password } = req.body;
 
     // Validate inputs
@@ -274,6 +292,13 @@ export const loginUser = async (req, res) => {
     });
   } catch (error) {
     console. error("Login Error:", error.message);
+
+    if (error.message === "JWT_SECRET is not configured") {
+      return res.status(500).json({
+        message: "Server authentication is not configured",
+      });
+    }
+
     res.status(500).json({ message: "Server error" });
   }
 };

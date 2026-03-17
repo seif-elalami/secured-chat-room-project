@@ -49,8 +49,9 @@ const Login = () => {
 
   return (
     <AuthLayout
+      mode="login"
       title="Welcome Back!"
-      subtitle="Sign in to continue to your chatrooms"
+      subtitle="Return to your rooms, messages, assignments, and shared activity."
     >
       <form onSubmit={handleSubmit} className="auth-form">
         {error && <div className="error-message">{error}</div>}
@@ -83,10 +84,13 @@ const Login = () => {
 
         <button
           type="submit"
-          className="btn-primary"
+          className="btn-primary auth-submit-button"
           disabled={loading}
         >
-          {loading ? 'Signing in...' : 'Sign In'}
+          <span className="btn-primary-text">
+            {loading ? 'Signing in...' : 'Enter Secure Space'}
+          </span>
+          <span className="btn-primary-glow" />
         </button>
 
         <div className="auth-footer">

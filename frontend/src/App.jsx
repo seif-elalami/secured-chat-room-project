@@ -4,23 +4,8 @@ import { AuthProvider } from './context/AuthContext';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
 import ProtectedRoute from './components/ProtectedRoute';
+import Dashboard from './components/App/Dashboard';
 import './App.css';
-
-// Temporary Dashboard component (replace later)
-const Dashboard = () => {
-  return (
-    <div style={{ padding: '20px' }}>
-      <h1>Dashboard</h1>
-      <p>Welcome! You're logged in.</p>
-      <button onClick={() => {
-        localStorage.clear();
-        window.location.href = '/login';
-      }}>
-        Logout
-      </button>
-    </div>
-  );
-};
 
 function App() {
   return (

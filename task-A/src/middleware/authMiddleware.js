@@ -6,6 +6,13 @@ dotenv.config();
 
 export const authMiddleware = async (req, res, next) => {
   try {
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message: "Server authentication is not configured",
+      });
+    }
+
     console.log("🔐 Auth Middleware - Starting authentication...");
 
     const authHeader = req.headers.authorization;
@@ -91,6 +98,5 @@ export const authMiddleware = async (req, res, next) => {
     });
   }
 };
-
 
 

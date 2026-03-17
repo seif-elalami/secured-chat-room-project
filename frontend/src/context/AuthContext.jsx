@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { authAPI } from '../services/api';
+import { authAPI, userAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -28,19 +28,29 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  const updateSessionUser = (nextUser, nextToken = token) => {
+    if (nextToken) {
+      localStorage.setItem('token', nextToken);
+      setToken(nextToken);
+    }
+
+    localStorage.setItem('user', JSON.stringify(nextUser));
+    setUser(nextUser);
+  };
+
   const login = async (username, password) => {
     try {
       const data = await authAPI.login({ username, password });
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-
-      setToken(data.token);
-      setUser(data.user);
+      updateSessionUser(data.user, data.token);
 
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      const message =
+        error.response?.data?.message ||
+        (error.code === 'ERR_NETWORK'
+          ? 'Cannot reach the API server on port 3000'
+          : 'Login failed');
       return { success: false, error: message };
     }
   };
@@ -49,15 +59,15 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await authAPI.register(userData);
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-
-      setToken(data.token);
-      setUser(data.user);
+      updateSessionUser(data.user, data.token);
 
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || 'Registration failed';
+      const message =
+        error.response?.data?.message ||
+        (error.code === 'ERR_NETWORK'
+          ? 'Cannot reach the API server on port 3000'
+          : 'Registration failed');
       return { success: false, error: message };
     }
   };
@@ -69,12 +79,29 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const refreshProfile = async () => {
+    try {
+      const profile = await userAPI.getMe();
+      updateSessionUser(profile);
+      return { success: true, data: profile };
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        (error.code === 'ERR_NETWORK'
+          ? 'Cannot reach the API server on port 3000'
+          : 'Could not refresh profile');
+      return { success: false, error: message };
+    }
+  };
+
   const value = {
     user,
     token,
     login,
     register,
     logout,
+    refreshProfile,
+    updateSessionUser,
     isAuthenticated: !!token,
     loading,
   };

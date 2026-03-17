@@ -66,8 +66,14 @@ const Register = () => {
       return;
     }
 
-    // Prepare data for API (exclude confirmPassword)
-    const { confirmPassword, ...registrationData } = formData;
+    const registrationData = {
+      username: formData.username.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      password: formData.password,
+      firstName: formData.firstName.trim(),
+      lastName: formData.lastName.trim(),
+    };
 
     const result = await register(registrationData);
 
@@ -82,8 +88,9 @@ const Register = () => {
 
   return (
     <AuthLayout
+      mode="register"
       title="Create Account"
-      subtitle="Join the conversation today"
+      subtitle="Create your profile and light up a protected collaboration space."
     >
       <form onSubmit={handleSubmit} className="auth-form">
         {error && <div className="error-message">{error}</div>}
@@ -189,10 +196,13 @@ const Register = () => {
 
         <button
           type="submit"
-          className="btn-primary"
+          className="btn-primary auth-submit-button"
           disabled={loading}
         >
-          {loading ? 'Creating account...' : 'Create Account'}
+          <span className="btn-primary-text">
+            {loading ? 'Creating account...' : 'Launch My Account'}
+          </span>
+          <span className="btn-primary-glow" />
         </button>
 
         <div className="auth-footer">
