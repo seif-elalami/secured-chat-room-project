@@ -149,6 +149,11 @@ export const roomAPI = {
     const response = await api.post(`/rooms/join/${inviteCode}`);
     return response.data;
   },
+
+  deleteRoom: async (roomId) => {
+    const response = await api.delete(`/rooms/${roomId}`);
+    return response.data;
+  },
 };
 
 export const messageAPI = {
@@ -196,6 +201,107 @@ export const messageAPI = {
     const response = await api.post('/messages/read-batch', { messageIds });
     return response.data;
   },
+
+  getMessageReaders: async (messageId) => {
+    const response = await api.get(`/messages/${messageId}/readers`);
+    return response.data;
+  },
+
+  uploadMedia: async (roomId, formData) => {
+    const response = await api.post(`/messages/${roomId}/media`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  deleteMedia: async (messageId, mediaId) => {
+    const response = await api.delete(`/messages/${messageId}/media/${mediaId}`);
+    return response.data;
+  },
+};
+
+export const noteAPI = {
+  getNotes: async (queryParams = '') => {
+    const response = await api.get(`/notes${queryParams}`);
+    return response.data;
+  },
+
+  getNoteById: async (noteId) => {
+    const response = await api.get(`/notes/${noteId}`);
+    return response.data;
+  },
+
+  createNote: async (payload) => {
+    const response = await api.post('/notes', payload);
+    return response.data;
+  },
+
+  updateNote: async (noteId, payload) => {
+    const response = await api.put(`/notes/${noteId}`, payload);
+    return response.data;
+  },
+
+  deleteNote: async (noteId) => {
+    const response = await api.delete(`/notes/${noteId}`);
+    return response.data;
+  },
+
+  restoreNote: async (noteId) => {
+    const response = await api.post(`/notes/${noteId}/restore`);
+    return response.data;
+  },
+
+  togglePin: async (noteId) => {
+    const response = await api.post(`/notes/${noteId}/pin`);
+    return response.data;
+  },
+
+  toggleFavorite: async (noteId) => {
+    const response = await api.post(`/notes/${noteId}/favorite`);
+    return response.data;
+  },
+
+  syncNotes: async (payload) => {
+    const response = await api.post('/notes/sync', payload);
+    return response.data;
+  }
+};
+
+export const assignmentAPI = {
+  createAssignment: async (formData) => {
+    const response = await api.post('/assignments', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  getAssignments: async (roomId) => {
+    const url = roomId ? `/assignments?roomId=${roomId}` : '/assignments';
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  getAssignmentById: async (assignmentId) => {
+    const response = await api.get(`/assignments/${assignmentId}`);
+    return response.data;
+  },
+
+  submitAssignment: async (assignmentId, formData) => {
+    const response = await api.post(`/assignments/${assignmentId}/submit`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  gradeSubmission: async (assignmentId, studentId, payload) => {
+    const response = await api.put(`/assignments/${assignmentId}/grade/${studentId}`, payload);
+    return response.data;
+  },
+
+  deleteAssignment: async (assignmentId) => {
+    const response = await api.delete(`/assignments/${assignmentId}`);
+    return response.data;
+  }
 };
 
 export default api;

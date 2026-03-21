@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { messageAPI, roomAPI, userAPI } from '../../services/api';
+import NotesPanel from './NotesPanel';
+import AssignmentsPanel from './AssignmentsPanel';
 import '../../styles/AppShell.css';
 
 const REACTION_OPTIONS = ['👍', '❤️', '😂'];
@@ -65,6 +67,11 @@ const Dashboard = () => {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [roomLoading, setRoomLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [roomStats, setRoomStats] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const fileInputRef = useRef(null);
+  const [activeMessageInfoId, setActiveMessageInfoId] = useState(null);
+  const [messageReaders, setMessageReaders] = useState([]);
 
   const currentUserId = getUserId(user);
   const currentRole = roomRoleInfo?.currentUser?.role || 'member';
@@ -138,6 +145,7 @@ const Dashboard = () => {
       setRoomRoleInfo(null);
       setMessages([]);
       setPinnedMessages([]);
+      setRoomStats(null);
       return;
     }
 
@@ -352,16 +360,25 @@ const Dashboard = () => {
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
-    if (!selectedRoomId || !messageDraft.trim()) {
+    if (!selectedRoomId || (!messageDraft.trim() && !selectedFile)) {
       return;
     }
 
     setSendingMessage(true);
     try {
-      await messageAPI.sendMessage({
-        roomId: selectedRoomId,
-        content: messageDraft.trim(),
-      });
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('media', selectedFile);
+        if (messageDraft.trim()) formData.append('content', messageDraft.trim());
+        await messageAPI.uploadMedia(selectedRoomId, formData);
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } else {
+        await messageAPI.sendMessage({
+          roomId: selectedRoomId,
+          content: messageDraft.trim(),
+        });
+      }
       setMessageDraft('');
       await loadRoomContext(selectedRoomId);
       await loadRooms(selectedRoomId);
@@ -468,6 +485,18 @@ const Dashboard = () => {
     }
   };
 
+  const handleRemoveMember = async (userId) => {
+    const confirmed = window.confirm('Are you sure you want to remove this member?');
+    if (!confirmed) return;
+    try {
+      await roomAPI.removeMember(selectedRoomId, userId);
+      await loadRoomContext(selectedRoomId);
+      showFlash('success', 'Member removed');
+    } catch (error) {
+      showFlash('error', getErrorMessage(error, 'Could not remove member'));
+    }
+  };
+
   const handlePromotion = async (event) => {
     event.preventDefault();
     if (!promotion.targetUserId.trim()) {
@@ -519,6 +548,66 @@ const Dashboard = () => {
       showFlash('success', invite ? `Invite: ${invite}` : 'Invite loaded');
     } catch (error) {
       showFlash('error', getErrorMessage(error, 'Could not load invite'));
+    }
+  };
+
+  const handleRevokeInvite = async () => {
+    try {
+      await roomAPI.revokeInvite(selectedRoomId);
+      showFlash('success', 'Invite revoked successfully');
+    } catch (error) {
+      showFlash('error', getErrorMessage(error, 'Could not revoke invite'));
+    }
+  };
+
+  const handleGetStatistics = async () => {
+    try {
+      const response = await roomAPI.getStatistics(selectedRoomId);
+      setRoomStats(response.data || response.statistics || response);
+      showFlash('success', 'Statistics loaded');
+    } catch (error) {
+      showFlash('error', getErrorMessage(error, 'Could not load statistics'));
+    }
+  };
+
+  const handleDeleteRoom = async () => {
+    const confirmed = window.confirm('Are you sure you want to permanently delete this room? This action cannot be undone.');
+    if (!confirmed) return;
+    try {
+      await roomAPI.deleteRoom(selectedRoomId);
+      showFlash('success', 'Room deleted successfully');
+      await loadRooms();
+      setSelectedRoomId('');
+    } catch (error) {
+      showFlash('error', getErrorMessage(error, 'Could not delete room'));
+    }
+  };
+
+  const handleDeleteMedia = async (messageId, mediaId) => {
+    const confirmed = window.confirm('Delete this media?');
+    if (!confirmed) return;
+    try {
+      await messageAPI.deleteMedia(messageId, mediaId);
+      await loadRoomContext(selectedRoomId);
+      showFlash('success', 'Media deleted');
+    } catch (error) {
+      showFlash('error', getErrorMessage(error, 'Could not delete media'));
+    }
+  };
+
+  const handleViewReaders = async (messageId) => {
+    if (activeMessageInfoId === messageId) {
+      setActiveMessageInfoId(null);
+      setMessageReaders([]);
+      return;
+    }
+    
+    try {
+      const response = await messageAPI.getMessageReaders(messageId);
+      setMessageReaders(response.data || response.readers || response || []);
+      setActiveMessageInfoId(messageId);
+    } catch (error) {
+      showFlash('error', getErrorMessage(error, 'Could not load message readers'));
     }
   };
 
@@ -728,8 +817,18 @@ const Dashboard = () => {
                           <button
                             className="workspace-link-button"
                             onClick={() => handlePinMessage(entry._id)}
+                            style={{marginLeft: '8px'}}
                           >
                             {entry.isPinned ? 'Unpin' : 'Pin'}
+                          </button>
+                        )}
+                        {mine && (
+                          <button
+                            className="workspace-link-button"
+                            onClick={() => handleViewReaders(entry._id)}
+                            style={{marginLeft: '8px'}}
+                          >
+                            Info
                           </button>
                         )}
                       </div>
@@ -743,6 +842,25 @@ const Dashboard = () => {
                       )}
 
                       <p>{entry.isDeleted ? '[Message deleted]' : entry.content}</p>
+
+                      {entry.media && entry.media.length > 0 && (
+                        <div className="message-media">
+                          {entry.media.map(m => (
+                            <div key={m._id} style={{ marginTop: '10px' }}>
+                              <img src={m.url || 'https://via.placeholder.com/150'} alt="Attachment preview" style={{ maxWidth: '100%', borderRadius: '4px', maxHeight: '200px', objectFit: 'cover' }} />
+                              {mine && !entry.isDeleted && (
+                                <button
+                                  className="workspace-link-button"
+                                  onClick={() => handleDeleteMedia(entry._id, m._id)}
+                                  style={{ display: 'block', marginTop: '4px', color: '#ff4d4f' }}
+                                >
+                                  Delete Media
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {entry.location?.url && (
                         <a href={entry.location.url} target="_blank" rel="noreferrer" className="message-link">
@@ -761,34 +879,75 @@ const Dashboard = () => {
                           {emoji}
                         </button>
                       ))}
-                      {entry.reactions?.length > 0 && (
+                       {entry.reactions?.length > 0 && (
                         <span className="workspace-muted">{entry.reactions.length} reactions</span>
                       )}
                     </div>
+
+                    {activeMessageInfoId === entry._id && (
+                      <div className="message-readers-panel" style={{ marginTop: '8px', padding: '8px', background: 'rgba(0,0,0,0.02)', borderRadius: '4px', fontSize: '12px' }}>
+                        <strong>Read by:</strong>
+                        {messageReaders.length > 0 ? (
+                          <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px' }}>
+                            {messageReaders.map(reader => (
+                              <li key={reader._id || reader.id}>{getDisplayName(reader)}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p style={{ margin: '4px 0 0 0', opacity: 0.7 }}>No one has read this yet.</p>
+                        )}
+                      </div>
+                    )}
                   </article>
                 );
               })}
             </div>
 
-            <form className="message-composer" onSubmit={handleSendMessage}>
-              <textarea
-                className="workspace-textarea"
-                placeholder={
-                  canSendMessages
-                    ? 'Type a message for this room...'
-                    : 'Messaging is restricted by room policy for your current role.'
-                }
-                value={messageDraft}
-                onChange={(event) => setMessageDraft(event.target.value)}
-                disabled={!selectedRoom || !canSendMessages || sendingMessage}
-              />
-              <button
-                className="workspace-button"
-                type="submit"
-                disabled={!selectedRoom || !canSendMessages || sendingMessage}
-              >
-                {sendingMessage ? 'Sending...' : 'Send Message'}
-              </button>
+            <form className="message-composer" onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {selectedFile && (
+                <div style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(0,0,0,0.05)', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span><strong style={{ opacity: 0.7 }}>Attachment:</strong> {selectedFile.name}</span>
+                  <button type="button" className="workspace-link-button" onClick={() => { setSelectedFile(null); if(fileInputRef.current) fileInputRef.current.value = ''; }} style={{color: '#ff4d4f'}}>Remove</button>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '10px', width: '100%', alignItems: 'flex-start' }}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={(e) => setSelectedFile(e.target.files[0])}
+                  style={{ display: 'none' }}
+                />
+                <button
+                  type="button"
+                  className="workspace-button workspace-button-ghost"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!selectedRoom || !canSendMessages || sendingMessage}
+                  style={{ padding: '0 12px', height: '100%', minHeight: '44px', display: 'flex', alignItems: 'center' }}
+                  title="Attach Media"
+                >
+                  📎
+                </button>
+                <textarea
+                  className="workspace-textarea"
+                  style={{ flex: 1, margin: 0, minHeight: '44px' }}
+                  placeholder={
+                    canSendMessages
+                      ? 'Type a message for this room...'
+                      : 'Messaging is restricted by room policy for your current role.'
+                  }
+                  value={messageDraft}
+                  onChange={(event) => setMessageDraft(event.target.value)}
+                  disabled={!selectedRoom || !canSendMessages || sendingMessage}
+                />
+                <button
+                  className="workspace-button"
+                  style={{ height: '100%', minHeight: '44px' }}
+                  type="submit"
+                  disabled={!selectedRoom || !canSendMessages || sendingMessage}
+                >
+                  {sendingMessage ? 'Sending...' : 'Send'}
+                </button>
+              </div>
             </form>
           </div>
         </section>
@@ -813,6 +972,18 @@ const Dashboard = () => {
             onClick={() => setActivePanel('room')}
           >
             Room
+          </button>
+          <button
+            className={`workspace-tab ${activePanel === 'notes' ? 'is-active' : ''}`}
+            onClick={() => setActivePanel('notes')}
+          >
+            Notes
+          </button>
+          <button
+            className={`workspace-tab ${activePanel === 'assignments' ? 'is-active' : ''}`}
+            onClick={() => setActivePanel('assignments')}
+          >
+            Assignments
           </button>
         </div>
 
@@ -922,9 +1093,20 @@ const Dashboard = () => {
                   <p className="workspace-muted">Your role: {currentRole}</p>
                   <div className="member-role-list">
                     {roomMembers.map((entry) => (
-                      <div key={entry.id} className="member-role-item">
+                      <div key={entry.id} className="member-role-item" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                         <span>{entry.username}</span>
-                        <span className="workspace-badge">{entry.role}</span>
+                        <div>
+                          <span className="workspace-badge">{entry.role}</span>
+                          {currentPermissions.canManageMembers && entry.id !== currentUserId && (
+                            <button
+                              className="workspace-link-button"
+                              onClick={() => handleRemoveMember(entry.id)}
+                              style={{ marginLeft: '10px', color: '#ff4d4f' }}
+                            >
+                              Kick
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1010,6 +1192,22 @@ const Dashboard = () => {
                 </form>
 
                 <div className="workspace-card">
+                  <div className="room-list-header">
+                    <p className="workspace-section-title">Room Statistics</p>
+                    <button className="workspace-link-button" onClick={handleGetStatistics}>
+                      Load Stats
+                    </button>
+                  </div>
+                  {roomStats && (
+                    <div className="stats-display" style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.05)', borderRadius: '4px' }}>
+                      <pre style={{ fontSize: '12px', whiteSpace: 'pre-wrap', margin: 0 }}>
+                        {JSON.stringify(roomStats, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                <div className="workspace-card">
                   <p className="workspace-section-title">Invite Controls</p>
                   <div className="workspace-inline-actions">
                     <button className="workspace-button" onClick={handleGenerateInvite}>
@@ -1018,11 +1216,41 @@ const Dashboard = () => {
                     <button className="workspace-button workspace-button-ghost" onClick={handleFetchInvite}>
                       View Invite
                     </button>
+                    <button className="workspace-button workspace-button-danger" onClick={handleRevokeInvite}>
+                      Revoke
+                    </button>
                   </div>
                 </div>
               </>
             )}
+
+            {selectedRoom && (currentRole === 'creator' || currentRole === 'admin') && (
+              <div className="workspace-card danger-card">
+                <div className="room-list-header">
+                  <p className="workspace-section-title">Danger Zone</p>
+                </div>
+                <p className="workspace-muted" style={{ marginBottom: '12px' }}>
+                  Permanently delete this entire room and erase all its messages, settings, and media.
+                </p>
+                <button className="workspace-button workspace-button-danger" onClick={handleDeleteRoom} style={{ width: '100%' }}>
+                  Delete Room
+                </button>
+              </div>
+            )}
           </>
+        )}
+
+        {activePanel === 'notes' && (
+          <NotesPanel user={profile || user} showFlash={showFlash} />
+        )}
+
+        {activePanel === 'assignments' && (
+          <AssignmentsPanel 
+            roomId={selectedRoomId} 
+            currentRole={currentRole} 
+            showFlash={showFlash} 
+            currentUserId={currentUserId} 
+          />
         )}
       </aside>
     </div>
