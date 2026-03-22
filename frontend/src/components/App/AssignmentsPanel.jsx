@@ -9,6 +9,12 @@ const AssignmentsPanel = ({ roomId, currentRole, showFlash, currentUserId }) => 
   
   // Teachers
   const isTeacher = ['admin', 'moderator', 'creator'].includes(currentRole);
+  
+  const canGrade = ['admin', 'creator'].includes(currentRole) || 
+                   (currentRole === 'moderator' && (activeAssignment?.createdBy?._id === currentUserId || activeAssignment?.createdBy === currentUserId));
+                   
+  const isAssignedToMe = activeAssignment?.assignedTo?.some(u => (u._id || u) === currentUserId);
+  const shouldShowSubmissionUI = !isTeacher || isAssignedToMe;
 
   const fetchAssignments = async () => {
     if (!roomId) return;
@@ -52,7 +58,7 @@ const AssignmentsPanel = ({ roomId, currentRole, showFlash, currentUserId }) => 
   };
 
   // CREATE FORM
-  const [createForm, setCreateForm] = useState({ title: '', description: '', deadline: '' });
+  const [createForm, setCreateForm] = useState({ title: '', description: '', deadline: '', assignedTo: '' });
   const createFileInputRef = useRef(null);
   const [createFiles, setCreateFiles] = useState([]);
 
@@ -68,18 +74,22 @@ const AssignmentsPanel = ({ roomId, currentRole, showFlash, currentUserId }) => 
     formData.append('description', createForm.description);
     formData.append('deadline', new Date(createForm.deadline).toISOString());
     formData.append('roomId', roomId);
+    if (createForm.assignedTo.trim()) {
+      const ids = createForm.assignedTo.split(',').map(id => id.trim()).filter(Boolean);
+      ids.forEach(id => formData.append('assignedTo[]', id));
+    }
     Array.from(createFiles).forEach(file => formData.append('attachments', file));
 
     try {
       await assignmentAPI.createAssignment(formData);
       showFlash('success', 'Assignment created successfully');
-      setCreateForm({ title: '', description: '', deadline: '' });
+      setCreateForm({ title: '', description: '', deadline: '', assignedTo: '' });
       setCreateFiles([]);
       if (createFileInputRef.current) createFileInputRef.current.value = '';
       setView('list');
       fetchAssignments();
     } catch (error) {
-      showFlash('error', 'Failed to create assignment');
+      showFlash('error', error.response?.data?.message || 'Failed to create assignment');
     }
   };
 
@@ -153,20 +163,31 @@ const AssignmentsPanel = ({ roomId, currentRole, showFlash, currentUserId }) => 
           {!loading && assignments.length === 0 && <p className="workspace-muted">No assignments in this room.</p>}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
-            {assignments.map(assign => (
-              <div key={assign._id} style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '15px', borderRadius: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <h4 style={{ margin: '0 0 5px 0' }}>{assign.title}</h4>
-                  {isTeacher && (
-                    <button className="workspace-link-button" style={{color: '#ff4d4f'}} onClick={() => handleDelete(assign._id)}>Delete</button>
-                  )}
+            {assignments.map(assign => {
+              const isCreator = (assign.createdBy?._id || assign.createdBy) === currentUserId;
+              const assignedToMe = assign.assignedTo?.some(u => (u._id || u) === currentUserId);
+              const assignedToAll = !assign.assignedTo || assign.assignedTo.length === 0;
+
+              return (
+                <div key={assign._id} style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '15px', borderRadius: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <h4 style={{ margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      {assign.title}
+                      {assignedToMe && <span style={{ fontSize: '11px', padding: '2px 8px', background: 'rgba(97, 218, 251, 0.15)', color: '#61dafb', borderRadius: '12px', fontWeight: 'normal' }}>Assigned to You</span>}
+                      {assignedToAll && <span style={{ fontSize: '11px', padding: '2px 8px', background: 'rgba(97, 218, 251, 0.15)', color: '#61dafb', borderRadius: '12px', fontWeight: 'normal' }}>For Everyone</span>}
+                      {isCreator && <span style={{ fontSize: '11px', padding: '2px 8px', background: 'rgba(152, 195, 121, 0.15)', color: '#98c379', borderRadius: '12px', fontWeight: 'normal' }}>Authored</span>}
+                    </h4>
+                    {isTeacher && (
+                      <button className="workspace-link-button" style={{color: '#ff4d4f'}} onClick={() => handleDelete(assign._id)}>Delete</button>
+                    )}
+                  </div>
+                  <p style={{ margin: '0 0 10px 0', fontSize: '14px', opacity: 0.8 }}>Due: {new Date(assign.deadline).toLocaleString()}</p>
+                  <button className="workspace-button workspace-button-ghost" onClick={() => loadAssignmentDetail(assign._id)}>
+                    View Details
+                  </button>
                 </div>
-                <p style={{ margin: '0 0 10px 0', fontSize: '14px', opacity: 0.8 }}>Due: {new Date(assign.deadline).toLocaleString()}</p>
-                <button className="workspace-button workspace-button-ghost" onClick={() => loadAssignmentDetail(assign._id)}>
-                  View Details
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -189,6 +210,10 @@ const AssignmentsPanel = ({ roomId, currentRole, showFlash, currentUserId }) => 
             <input 
               type="datetime-local" className="workspace-input" 
               value={createForm.deadline} onChange={e => setCreateForm({...createForm, deadline: e.target.value})}
+            />
+            <input 
+              className="workspace-input" placeholder="Assign to User IDs (comma separated, leave empty for all members)" 
+              value={createForm.assignedTo} onChange={e => setCreateForm({...createForm, assignedTo: e.target.value})}
             />
             <div style={{ padding: '10px', background: 'rgba(0,0,0,0.05)', borderRadius: '4px' }}>
               <p style={{ margin: '0 0 5px 0', fontSize: '13px' }}>Class Materials (Attachments)</p>
@@ -225,7 +250,7 @@ const AssignmentsPanel = ({ roomId, currentRole, showFlash, currentUserId }) => 
           <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '20px 0' }} />
 
           {/* STUDENT OVERVIEW */}
-          {!isTeacher && (
+          {shouldShowSubmissionUI && (
             <div>
               <p className="workspace-section-title">Your Work</p>
               {activeAssignment.submissions && activeAssignment.submissions.some(sub => sub.studentId._id === currentUserId || sub.studentId === currentUserId) ? (
@@ -256,7 +281,7 @@ const AssignmentsPanel = ({ roomId, currentRole, showFlash, currentUserId }) => 
           )}
 
           {/* TEACHER GRADING PORTAL */}
-          {isTeacher && (
+          {canGrade && (
             <div>
               <p className="workspace-section-title">Student Submissions ({activeAssignment.submissions?.length || 0})</p>
               {activeAssignment.submissions && activeAssignment.submissions.length > 0 ? (

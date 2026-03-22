@@ -91,6 +91,14 @@ export const canGradeAssignment = async (req, res, next) => {
       });
     }
 
+    // ✅ Moderators can only grade their own created assignments
+    if (userRole === 'moderator' && assignment.createdBy.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Moderators can only grade assignments they created"
+      });
+    }
+
     console.log(`✅ User can grade assignments in this room`);
     req.room = room;
     req.assignment = assignment;

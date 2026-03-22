@@ -626,6 +626,13 @@ export const addMember = async (req, res) => {
       });
     }
 
+    if (!room.isGroup) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot add members to a direct chat.",
+      });
+    }
+
     // ✅ 1. Check permission using new model
     if (!room.hasPermission(currentUserId, Permissions.ADD_MEMBERS)) {
       return res.status(403).json({
@@ -1072,11 +1079,11 @@ export const deleteRoom = async (req, res) => {
       });
     }
 
-    // Only admins can delete the room
-    if (!room.admins.includes(userId)) {
+    // Only users with delete privileges can delete the room
+    if (!room.canDeleteRoom(userId)) {
       return res.status(403).json({
         success: false,
-        message: "Admin privileges required to delete room"
+        message: "You do not have permission to delete this room",
       });
     }
 
@@ -1279,7 +1286,7 @@ export const getUserRoleInfo =  async (req, res) => {
     }
 
     // 🧠 Failsafe: ensure creator is always in `users`
-    if (!room.users.some((u) => u._id.toString() === room.creator._id.toString())) {
+    if (room.creator && !room.users.some((u) => u._id.toString() === room.creator._id.toString())) {
       room.users.push(room.creator);
       await room.save(); // Optional: persist correction
       console.log(`🩹 Added missing creator ${room.creator._id} to users list`);
@@ -1329,7 +1336,7 @@ export const getUserRoleInfo =  async (req, res) => {
           id: userId,
           role: currentUserRole,
           canSendMessages:
-            room.settings?.messagingPolicy === "all_members" ||
+            (room.settings?.messagingPolicy || "all_members") === "all_members" ||
             ["admin", "creator", "moderator"].includes(currentUserRole),
           permissions,
         },

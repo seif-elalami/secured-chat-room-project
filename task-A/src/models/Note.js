@@ -162,6 +162,12 @@ NoteSchema.methods.toggleArchive = async function() {
   return await this.save();
 };
 
+// Toggle pin
+NoteSchema.methods.togglePin = async function() {
+  this.isPinned = !this.isPinned;
+  return await this.save();
+};
+
 // ========================================
 // STATIC METHODS
 // ========================================

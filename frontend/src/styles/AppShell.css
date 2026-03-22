@@ -2,15 +2,20 @@
 
 .workspace-shell {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr) 380px;
-  gap: 20px;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
   background:
     radial-gradient(circle at top left, rgba(124, 246, 214, 0.12), transparent 25%),
     radial-gradient(circle at bottom right, rgba(43, 214, 255, 0.1), transparent 24%),
     linear-gradient(135deg, #030813 0%, #08111f 48%, #02060d 100%);
   color: #edf7ff;
+}
+
+.page-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 70px);
 }
 
 .workspace-sidebar,
@@ -410,19 +415,29 @@ select.workspace-input:focus {
 }
 
 @media (max-width: 1380px) {
-  .workspace-shell {
-    grid-template-columns: 300px minmax(0, 1fr);
+  .page-container {
+    flex-wrap: wrap;
+    overflow-y: auto;
   }
 
   .workspace-detail {
-    grid-column: 1 / -1;
+    width: 100% !important;
+    border-left: none !important;
+    border-top: 1px solid rgba(255,255,255,0.1);
   }
 }
 
 @media (max-width: 980px) {
-  .workspace-shell {
-    grid-template-columns: 1fr;
-    padding: 16px;
+  .page-container {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  
+  .workspace-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    min-height: auto;
   }
 
   .workspace-room {

@@ -1,5 +1,7 @@
 import User from "../models/User.js";
 
+const escapeRegex = (string) => string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+
 /**
  * Retrieves the authenticated user's complete profile.
  * Excludes password field for security.
@@ -102,6 +104,50 @@ export const getUserById = async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error("Get User Error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getUserByUsername = async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.params.username }).select(
+      "username fullName email phone"
+    );
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  } catch (error) {
+    console.error("Get User by Username Error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * Search users by username prefix/substring (authenticated).
+ * Excludes the current user. Returns public fields only.
+ *
+ * @route GET /users/search?q=&limit=
+ */
+export const searchUsersByUsername = async (req, res) => {
+  try {
+    const raw = (req.query.q || "").trim();
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
+
+    if (raw.length < 2) {
+      return res.json({ users: [] });
+    }
+
+    const pattern = new RegExp(escapeRegex(raw), "i");
+    const users = await User.find({
+      _id: { $ne: req.userId },
+      username: pattern,
+    })
+      .select("username fullName email phone")
+      .limit(limit)
+      .lean();
+
+    res.json({ users });
+  } catch (error) {
+    console.error("Search users error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };

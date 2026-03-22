@@ -6,7 +6,8 @@ const NotesPanel = ({ user, showFlash }) => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingNote, setEditingNote] = useState(null);
-  const [formDraft, setFormDraft] = useState({ title: '', content: '', isChecklist: false });
+  const [formDraft, setFormDraft] = useState({ title: '', content_body: '', isChecklist: false });
+  const [view, setView] = useState('list'); // 'list' | 'form'
 
   const fetchNotes = async () => {
     setLoading(true);
@@ -41,7 +42,8 @@ const NotesPanel = ({ user, showFlash }) => {
         showFlash('success', 'Note created');
       }
       setEditingNote(null);
-      setFormDraft({ title: '', content: '', isChecklist: false });
+      setFormDraft({ title: '', content_body: '', isChecklist: false });
+      setView('list');
       fetchNotes();
     } catch (error) {
       showFlash('error', 'Failed to save note');
@@ -89,109 +91,117 @@ const NotesPanel = ({ user, showFlash }) => {
 
   return (
     <div className="notes-panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div className="workspace-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p className="workspace-section-title">{editingNote ? 'Edit Note' : 'Create Note'}</p>
-          <button className="workspace-link-button" onClick={handleSync}>Force Sync</button>
+      
+      {view === 'form' && (
+        <div className="workspace-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p className="workspace-section-title">{editingNote ? 'Edit Note' : 'Create Note'}</p>
+            <button className="workspace-link-button" onClick={() => { setView('list'); setEditingNote(null); setFormDraft({ title: '', content_body: '', isChecklist: false }); }}>Back</button>
+          </div>
+          <form onSubmit={handleCreateOrUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
+            <input 
+              className="workspace-input" 
+              placeholder="Note title..." 
+              value={formDraft.title}
+              onChange={(e) => setFormDraft({...formDraft, title: e.target.value})}
+            />
+            <textarea 
+              className="workspace-textarea" 
+              placeholder="Note content..." 
+              value={formDraft.content_body}
+              onChange={(e) => setFormDraft({...formDraft, content_body: e.target.value})}
+              style={{ minHeight: '80px' }}
+            />
+            <label className="workspace-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+              <input 
+                type="checkbox" 
+                checked={formDraft.isChecklist}
+                onChange={(e) => setFormDraft({...formDraft, isChecklist: e.target.checked})}
+              />
+              Format as Checklist
+            </label>
+            <div className="workspace-inline-actions">
+              <button className="workspace-button" type="submit">
+                {editingNote ? 'Update Note' : 'Save Note'}
+              </button>
+              {editingNote && (
+                <button 
+                  type="button" 
+                  className="workspace-button workspace-button-ghost" 
+                  onClick={() => { setEditingNote(null); setFormDraft({ title: '', content_body: '', isChecklist: false }); setView('list'); }}
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
+          </form>
         </div>
-        <form onSubmit={handleCreateOrUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      )}
+
+      {view === 'list' && (
+        <div className="workspace-card">
+          <div className="room-list-header">
+            <p className="workspace-section-title">Your Notes</p>
+            <div>
+              <button className="workspace-button" onClick={() => setView('form')} style={{ marginRight: '10px' }}>+ New</button>
+              <button className="workspace-link-button" onClick={fetchNotes}>Refresh</button>
+            </div>
+          </div>
+          
           <input 
             className="workspace-input" 
-            placeholder="Note title..." 
-            value={formDraft.title}
-            onChange={(e) => setFormDraft({...formDraft, title: e.target.value})}
+            placeholder="Search notes..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ marginBottom: '15px' }}
           />
-          <textarea 
-            className="workspace-textarea" 
-            placeholder="Note content..." 
-            value={formDraft.content}
-            onChange={(e) => setFormDraft({...formDraft, content: e.target.value})}
-            style={{ minHeight: '80px' }}
-          />
-          <label className="workspace-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-            <input 
-              type="checkbox" 
-              checked={formDraft.isChecklist}
-              onChange={(e) => setFormDraft({...formDraft, isChecklist: e.target.checked})}
-            />
-            Format as Checklist
-          </label>
-          <div className="workspace-inline-actions">
-            <button className="workspace-button" type="submit">
-              {editingNote ? 'Update Note' : 'Save Note'}
-            </button>
-            {editingNote && (
-              <button 
-                type="button" 
-                className="workspace-button workspace-button-ghost" 
-                onClick={() => { setEditingNote(null); setFormDraft({ title: '', content: '', isChecklist: false }); }}
-              >
-                Cancel Edit
-              </button>
-            )}
-          </div>
-        </form>
-      </div>
 
-      <div className="workspace-card">
-        <div className="room-list-header">
-          <p className="workspace-section-title">Your Notes</p>
-          <button className="workspace-link-button" onClick={fetchNotes}>Refresh</button>
-        </div>
-        
-        <input 
-          className="workspace-input" 
-          placeholder="Search notes..." 
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ marginBottom: '15px' }}
-        />
-
-        {loading && <p className="workspace-muted">Loading notes...</p>}
-        {!loading && notes.length === 0 && <p className="workspace-muted">No notes found.</p>}
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {notes.map(note => (
-            <div key={note._id || note.id} style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '15px', borderRadius: '4px', background: note.isPinned ? 'rgba(255,255,255,0.05)' : 'transparent' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {note.isPinned && <span>📌</span>}
-                  {note.isFavorite && <span>⭐</span>}
-                  {note.title}
-                </h4>
-                <div style={{ display: 'flex', gap: '10px', fontSize: '13px' }}>
-                  <button className="workspace-link-button" onClick={() => handleTogglePin(note._id || note.id)}>
-                    {note.isPinned ? 'Unpin' : 'Pin'}
+          {loading && <p className="workspace-muted">Loading notes...</p>}
+          {!loading && notes.length === 0 && <p className="workspace-muted">No notes found.</p>}
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {notes.map(note => (
+              <div key={note._id || note.id} style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '15px', borderRadius: '4px', background: note.isPinned ? 'rgba(255,255,255,0.05)' : 'transparent' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {note.isPinned && <span>📌</span>}
+                    {note.is_favorite && <span>⭐</span>}
+                    {note.title || 'Untitled Note'}
+                  </h4>
+                  <div style={{ display: 'flex', gap: '10px', fontSize: '13px' }}>
+                    <button className="workspace-link-button" onClick={() => handleTogglePin(note._id || note.id)}>
+                      {note.isPinned ? 'Unpin' : 'Pin'}
+                    </button>
+                    <button className="workspace-link-button" onClick={() => handleToggleFavorite(note._id || note.id)}>
+                      {note.is_favorite ? 'Unstar' : 'Star'}
+                    </button>
+                  </div>
+                </div>
+                <p style={{ margin: '0 0 12px 0', fontSize: '14px', whiteSpace: 'pre-wrap', opacity: 0.8 }}>
+                  {note.content_body}
+                </p>
+                <div style={{ display: 'flex', gap: '12px', fontSize: '12px' }}>
+                  <span className="workspace-muted">{note.isChecklist ? '✅ Checklist' : '📝 Standard'}</span>
+                  <span style={{flex: 1}}></span>
+                  <button 
+                    className="workspace-link-button" 
+                    onClick={() => { setEditingNote(note); setFormDraft({ title: note.title || '', content_body: note.content_body || '', isChecklist: note.isChecklist || false }); setView('form'); }}
+                  >
+                    Edit
                   </button>
-                  <button className="workspace-link-button" onClick={() => handleToggleFavorite(note._id || note.id)}>
-                    {note.isFavorite ? 'Unstar' : 'Star'}
+                  <button 
+                    className="workspace-link-button" 
+                    style={{ color: '#ff4d4f' }}
+                    onClick={() => handleDelete(note._id || note.id)}
+                  >
+                    Trash
                   </button>
                 </div>
               </div>
-              <p style={{ margin: '0 0 12px 0', fontSize: '14px', whiteSpace: 'pre-wrap', opacity: 0.8 }}>
-                {note.content}
-              </p>
-              <div style={{ display: 'flex', gap: '12px', fontSize: '12px' }}>
-                <span className="workspace-muted">{note.isChecklist ? '✅ Checklist' : '📝 Standard'}</span>
-                <span style={{flex: 1}}></span>
-                <button 
-                  className="workspace-link-button" 
-                  onClick={() => { setEditingNote(note); setFormDraft({ title: note.title, content: note.content, isChecklist: note.isChecklist || false }); }}
-                >
-                  Edit
-                </button>
-                <button 
-                  className="workspace-link-button" 
-                  style={{ color: '#ff4d4f' }}
-                  onClick={() => handleDelete(note._id || note.id)}
-                >
-                  Trash
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

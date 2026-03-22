@@ -97,8 +97,15 @@ import Room from "../models/Room.js";
  */
 export const createAssignment = async (req, res) => {
   try {
-    const { title, description, type, deadline, roomId, assignedTo } = req.body;
-    const userId = req.user?. userId || req.user?.id || req.user?._id;
+    let { title, description, type, deadline, roomId } = req.body;
+    
+    // Accept FormData arrays explicitly handled by standard multer
+    let assignedTo = req.body.assignedTo || req.body['assignedTo[]'];
+    if (assignedTo && !Array.isArray(assignedTo)) {
+      assignedTo = [assignedTo];
+    }
+    
+    const userId = req.user?.userId || req.user?.id || req.user?._id;
 
 
     const room = req.room;
@@ -108,6 +115,18 @@ export const createAssignment = async (req, res) => {
         success: false,
         message: "Title, description, and deadline are required"
       });
+    }
+
+    const userRole = room.getUserRole(userId);
+
+    // Validate assignments based on role
+    if (assignedTo && assignedTo.length > 0) {
+      for (const targetId of assignedTo) {
+        const targetRole = room.getUserRole(targetId);
+        if (userRole === 'moderator' && ['admin', 'creator'].includes(targetRole)) {
+          return res.status(403).json({ success: false, message: "Moderators cannot assign tasks to Admins or Creators." });
+        }
+      }
     }
 
     // Handle attachments
@@ -138,7 +157,6 @@ export const createAssignment = async (req, res) => {
     await assignment.populate('roomId', 'title description');
 
     const user = await User.findById(userId);
-    const userRole = room.getUserRole(userId);
 
     console.log(`✅ Assignment created by ${user.username} (${userRole}) in room "${room.title}": "${title}"`);
 
@@ -275,11 +293,34 @@ export const getAssignments = async (req, res) => {
       }
 
       query.roomId = roomId;
-    } else {
 
-      const userRooms = await Room.find({ users: userId }). select('_id');
+      // Role-based visibility logic
+      const userRole = room.getUserRole(userId);
+      if (['admin', 'creator'].includes(userRole)) {
+        // sees all (no extra filter)
+      } else if (userRole === 'moderator') {
+        query.$or = [
+          { createdBy: userId },
+          { assignedTo: userId },
+          { assignedTo: { $size: 0 } }
+        ];
+      } else {
+        query.$or = [
+          { assignedTo: userId },
+          { assignedTo: { $size: 0 } }
+        ];
+      }
+    } else {
+      const userRooms = await Room.find({ users: userId }).select('_id');
       const roomIds = userRooms.map(r => r._id);
       query.roomId = { $in: roomIds };
+      
+      // If querying all rooms, safely constrain to assigned tasks for global
+      query.$or = [
+        { createdBy: userId },
+        { assignedTo: userId },
+        { assignedTo: { $size: 0 } }
+      ];
     }
 
 
@@ -325,7 +366,7 @@ export const getAssignmentById = async (req, res) => {
       .populate('createdBy', 'username email')
       .populate('roomId', 'title description users')
       .populate('assignedTo', 'username email')
-      .populate('submissions. studentId', 'username email');
+      .populate('submissions.studentId', 'username email');
 
     if (!assignment) {
       return res.status(404).json({
@@ -336,7 +377,8 @@ export const getAssignmentById = async (req, res) => {
 
     //  Check if user is room member
     const room = await Room.findById(assignment.roomId._id);
-    if (!room. isMember(userId)) {
+    const userRole = room.getUserRole(userId);
+    if (userRole === 'non_member') {
       return res.status(403). json({
         success: false,
         message: "You must be a member of this room to view this assignment"

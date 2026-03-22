@@ -37,14 +37,13 @@ const RoomSchema = new Schema(
 
     // ✅ Room settings
     settings: {
-      allowInvites: { type: Boolean, default: true },
-      allowMemberPromotion: { type: Boolean, default: false },
-      maxParticipants: { type: Number, default: 50 },
-      messagingPolicy: {
-        type: String,
-        enum: ["all_members", "admins_only"],
-        default: "all_members",
-      },
+      type: Object,
+      default: () => ({
+        allowInvites: true,
+        allowMemberPromotion: false,
+        maxParticipants: 50,
+        messagingPolicy: "all_members",
+      }),
     },
 
     createdAt: { type: Date, default: Date.now },
@@ -130,6 +129,7 @@ RoomSchema.methods.canManageMembers = function (userId) {
 };
 
 RoomSchema.methods.canDeleteRoom = function (userId) {
+  if (this.isGroup === false && this.isMember(userId)) return true;
   return this.getUserRole(userId) === "creator";
 };
 
@@ -139,6 +139,9 @@ RoomSchema.methods.canSendMessages = function (userId) {
 };
 
 RoomSchema.methods.hasPermission = function (userId, permission) {
+  if (this.isGroup === false && (permission === 'pin_messages' || permission === 'delete_any_message')) {
+    if (this.isMember(userId)) return true;
+  }
   const role = this.getUserRole(userId);
   return checkPermission(role, permission);
 };

@@ -1568,6 +1568,42 @@ export const syncNotes = async (req, res) => {
   }
 };
 
+/**
+ * Toggles a note between pinned and unpinned status.
+ *
+ * @route POST /notes/:noteId/pin
+ */
+export const togglePin = async (req, res) => {
+  try {
+    const { noteId } = req.params;
+    const userId = req.user?.userId || req.user?.id || req.user?._id;
+
+    const note = await Note.findOne({ _id: noteId, author: userId });
+
+    if (!note) {
+      return res.status(404).json({
+        success: false,
+        message: "Note not found."
+      });
+    }
+
+    await note.togglePin();
+
+    res.status(200).json({
+      success: true,
+      message: `Note ${note.isPinned ? "pinned" : "unpinned"} successfully`,
+      data: note
+    });
+  } catch (err) {
+    console.error("❌ Error toggling pin:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message
+    });
+  }
+};
+
 export default {
   createNote,
   getNotes,
@@ -1581,5 +1617,6 @@ export default {
   updateChecklistItem,
   deleteChecklistItem,
   reorderChecklistItems,
-  syncNotes
+  syncNotes,
+  togglePin
 };

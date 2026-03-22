@@ -2,6 +2,8 @@ import express from "express";
 import {
   getMyProfile,
   getUserById,
+  getUserByUsername,
+  searchUsersByUsername,
   updateMyProfile,
   deleteMyAccount,
   blockUser,
@@ -35,6 +37,8 @@ router.put("/unblock/:userIdToUnblock", authMiddleware, unblockUser);
 // ============================
 // PUBLIC PROFILE ROUTE
 // ============================
+router.get("/search", authMiddleware, searchUsersByUsername);
+router.get("/lookup/username/:username", authMiddleware, getUserByUsername);
 router.get("/:userId", authMiddleware, getUserById);
 
 export default router;

@@ -58,6 +58,16 @@ export const userAPI = {
     return response.data;
   },
 
+  getByUsername: async (username) => {
+    const response = await api.get(`/users/lookup/username/${username}`);
+    return response.data;
+  },
+
+  searchUsers: async (query) => {
+    const response = await api.get('/users/search', { params: { q: query } });
+    return response.data;
+  },
+
   getBlocked: async () => {
     const response = await api.get('/users/blocked');
     return response.data;
@@ -203,12 +213,13 @@ export const messageAPI = {
   },
 
   getMessageReaders: async (messageId) => {
-    const response = await api.get(`/messages/${messageId}/readers`);
+    const response = await api.get(`/messages/${messageId}/read-receipts`);
     return response.data;
   },
 
   uploadMedia: async (roomId, formData) => {
-    const response = await api.post(`/messages/${roomId}/media`, formData, {
+    formData.append('roomId', roomId);
+    const response = await api.post('/messages/send', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;
@@ -218,6 +229,23 @@ export const messageAPI = {
     const response = await api.delete(`/messages/${messageId}/media/${mediaId}`);
     return response.data;
   },
+};
+
+export const mediaAPI = {
+  uploadToGallery: async (formData) => {
+    const response = await api.post('/media/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+  getRoomImages: async (roomId, params = {}) => {
+    const response = await api.get(`/media/chats/${roomId}/media`, { params });
+    return response.data;
+  },
+  deleteMedia: async (mediaId) => {
+    const response = await api.delete(`/media/${mediaId}`);
+    return response.data;
+  }
 };
 
 export const noteAPI = {
@@ -262,7 +290,7 @@ export const noteAPI = {
   },
 
   syncNotes: async (payload) => {
-    const response = await api.post('/notes/sync', payload);
+    const response = await api.get('/notes/sync', { params: payload });
     return response.data;
   }
 };

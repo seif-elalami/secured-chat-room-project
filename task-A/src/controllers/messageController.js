@@ -1024,10 +1024,11 @@ export const pinMessage = async (req, res) => {
     }
 
     const userRole = room.getUserRole(userId);
-    if (!['moderator', 'admin', 'creator'].includes(userRole)) {
+    const canPin = !room.isGroup ? room.users.some(u => u.toString() === userId.toString()) : ['moderator', 'admin', 'creator'].includes(userRole);
+    if (!canPin) {
       return res.status(403).json({
         success: false,
-        message: "Only moderators and admins can pin messages"
+        message: "You do not have permission to pin messages"
       });
     }
 

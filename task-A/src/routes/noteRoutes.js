@@ -12,7 +12,8 @@ import {
   updateChecklistItem,
   deleteChecklistItem,
   reorderChecklistItems,
-  syncNotes
+  syncNotes,
+  togglePin
 } from "../controllers/noteController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -39,6 +40,7 @@ router.post("/:noteId/restore", restoreNote);
 // Toggle operations
 router.post("/:noteId/favorite", toggleFavorite);
 router.post("/:noteId/archive", toggleArchive);
+router.post("/:noteId/pin", togglePin);
 
 // ========================================
 // ✅ CHECKLIST ROUTES
