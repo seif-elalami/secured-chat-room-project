@@ -2,6 +2,8 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { authAPI, userAPI } from '../services/api';
 
 const AuthContext = createContext();
+const isLikelyJwt = (value) =>
+  typeof value === 'string' && value.split('.').length === 3;
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -21,10 +23,19 @@ export const AuthProvider = ({ children }) => {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
 
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+    if (storedToken && storedUser && isLikelyJwt(storedToken)) {
+      try {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+    } else if (storedToken || storedUser) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     }
+
     setLoading(false);
   }, []);
 

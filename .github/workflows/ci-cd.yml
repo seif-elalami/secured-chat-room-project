@@ -1,0 +1,79 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  backend-ci:
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
+    defaults:
+      run:
+        working-directory: task-A
+
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      MONGO_URI: mongodb://127.0.0.1:27017/tapi
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: task-A/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests if present
+        shell: bash
+        run: |
+          if npm run | grep -qE '^[[:space:]]+test([:[:space:]]|$)'; then
+            npm test -- --runInBand
+          else
+            echo "No test script found. Skipping tests."
+          fi
+
+      - name: Build Docker image
+        run: docker build -t secured-chat-room-app:ci .
+
+      - name: Run Docker container smoke test
+        shell: bash
+        run: |
+          export JWT_SECRET_VALUE="${JWT_SECRET:-github-actions-local-test-secret}"
+
+          docker run -d --rm \
+            --name secured-chat-room-app \
+            -p 3000:3000 \
+            -e NODE_ENV=production \
+            -e PORT=3000 \
+            -e MONGO_URI=mongodb://host.docker.internal:27017/tapi \
+            -e JWT_SECRET="${JWT_SECRET_VALUE}" \
+            --add-host=host.docker.internal:host-gateway \
+            secured-chat-room-app:ci
+
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then
+              echo "Smoke test passed."
+              exit 0
+            fi
+            sleep 3
+          done
+
+          echo "Container failed smoke test."
+          docker logs secured-chat-room-app
+          exit 1

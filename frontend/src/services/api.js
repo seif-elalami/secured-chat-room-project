@@ -2,6 +2,14 @@ import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000';
 
+const isLikelyJwt = (value) =>
+  typeof value === 'string' && value.split('.').length === 3;
+
+const clearStoredSession = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
@@ -14,12 +22,36 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
-    if (token) {
+
+    if (token && isLikelyJwt(token)) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else if (token) {
+      clearStoredSession();
     }
+
     return config;
   },
   (error) => {
+    return Promise.reject(error);
+  }
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const message = error.response?.data?.message;
+
+    if (
+      status === 401 &&
+      (message === 'Invalid token format' ||
+        message === 'Token has expired. Please log in again.' ||
+        message === 'Authentication failed' ||
+        message === 'Authorization header missing or invalid')
+    ) {
+      clearStoredSession();
+    }
+
     return Promise.reject(error);
   }
 );
