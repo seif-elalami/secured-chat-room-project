@@ -25,7 +25,7 @@ export const Permissions = {
   DEMOTE_ADMIN: 'demote_admin',
 };
 
-// ✅ Role Permission Sets
+//  Role Permission Sets
 const memberPermissions = [
   Permissions.SEND_MESSAGES,
   Permissions.DELETE_OWN_MESSAGE,

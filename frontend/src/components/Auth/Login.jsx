@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AuthLayout from './AuthLayout';
 import '../../styles/Auth.css';
+// Add this import:
+import api from '../../services/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -36,14 +38,21 @@ const Login = () => {
       return;
     }
 
-    const result = await login(formData.username, formData.password);
+    try {
+      // --- CSRF step: Fetch the CSRF token before login ---
+      await api.get('/csrf-token');
+      // ---------------------------------------------------
 
-    if (result.success) {
-      navigate('/dashboard'); // Change to your main app route
-    } else {
-      setError(result.error);
+      const result = await login(formData.username, formData.password);
+
+      if (result.success) {
+        navigate('/dashboard'); // Change to your main app route
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('An error occurred during login. Please try again.');
     }
-
     setLoading(false);
   };
 
