@@ -16,6 +16,7 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           
@@ -26,8 +27,6 @@ function App() {
             <Route path="/rooms/:roomId" element={<RoomPage />} />
             <Route path="/notes" element={<NotesPage />} />
             <Route path="/assignments" element={<AssignmentsPage />} />
-            {/* Redirect root to dashboard */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Routes>
       </Router>
