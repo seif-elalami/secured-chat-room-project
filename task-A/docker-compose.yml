@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:3000"
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -15,16 +17,43 @@ services:
       JWT_SECRET: ${JWT_SECRET}
     depends_on:
       mongo:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then((res) => { if (!res.ok) process.exit(1); }).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_BASE_URL: ${FRONTEND_API_BASE_URL:-http://localhost:3000}
+    image: secured-chat-room-frontend:latest
+    container_name: secured-chat-room-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-4000}:80"
+    depends_on:
+      app:
+        condition: service_healthy
 
   mongo:
     image: mongo:7
     container_name: secured-chat-room-mongo
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "${MONGO_HOST_PORT:-27018}:27017"
     volumes:
       - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 volumes:
   mongo-data:

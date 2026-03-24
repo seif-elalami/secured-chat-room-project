@@ -39,12 +39,16 @@ app.use("/media", mediaRoutes);
 app.use("/messages", messageRoutes);
 app.use("/rooms", roomRoutes);
 // Serve uploaded files statically
-app.use("/uploads", express.static(path.join(__dirname, "src", "uploads")));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/notes", noteRoutes);
 // Root route
 app.get("/", (req, res) => {
   res.send("🚀 Server is running successfully!");
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
 });
 
 // Add assignment routes

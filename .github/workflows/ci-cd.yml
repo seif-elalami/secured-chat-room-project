@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 jobs:
   backend-ci:
@@ -39,14 +40,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests if present
-        shell: bash
-        run: |
-          if npm run | grep -qE '^[[:space:]]+test([:[:space:]]|$)'; then
-            npm test -- --runInBand
-          else
-            echo "No test script found. Skipping tests."
-          fi
+      - name: Type check backend
+        run: npm run ts-check
 
       - name: Build Docker image
         run: docker build -t secured-chat-room-app:ci .
@@ -67,8 +62,9 @@ jobs:
             secured-chat-room-app:ci
 
           for attempt in {1..20}; do
-            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then
+            if curl --fail --silent http://127.0.0.1:3000/health > /dev/null; then
               echo "Smoke test passed."
+              docker stop secured-chat-room-app
               exit 0
             fi
             sleep 3
@@ -77,3 +73,46 @@ jobs:
           echo "Container failed smoke test."
           docker logs secured-chat-room-app
           exit 1
+
+  frontend-ci:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        env:
+          REACT_APP_API_BASE_URL: http://localhost:3000
+        run: npm run build
+
+      - name: Build frontend Docker image
+        run: docker build -t secured-chat-room-frontend:ci .
+
+  compose-validate:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: task-A
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate docker compose configuration
+        run: docker compose config
