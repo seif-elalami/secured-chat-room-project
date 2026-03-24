@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AuthLayout from './AuthLayout';
 import '../../styles/Auth.css';
+import api from '../../services/api';
+import { validateInput } from '../../services/security';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -40,9 +42,9 @@ const Register = () => {
       return 'Passwords do not match';
     }
 
-    // Password length
-    if (formData.password.length < 6) {
-      return 'Password must be at least 6 characters';
+    // Password length (Increased to 8 for better security)
+    if (formData.password.length < 8) {
+      return 'Password must be at least 8 characters';
     }
 
     // Email validation
@@ -75,12 +77,19 @@ const Register = () => {
       lastName: formData.lastName.trim(),
     };
 
-    const result = await register(registrationData);
+    try {
+      // --- CSRF Step: Get CSRF token cookie before POST ---
+      await api.get('/csrf-token');
+      // --- Register API call ---
+      const result = await register(registrationData);
 
-    if (result.success) {
-      navigate('/dashboard'); // Change to your main app route
-    } else {
-      setError(result.error);
+      if (result.success) {
+        navigate('/dashboard'); // Change to your main app route
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('An error occurred during registration. Please try again.');
     }
 
     setLoading(false);
@@ -105,6 +114,7 @@ const Register = () => {
               value={formData.firstName}
               onChange={handleChange}
               placeholder="John"
+              maxLength={50}
               disabled={loading}
             />
           </div>
@@ -118,6 +128,7 @@ const Register = () => {
               value={formData.lastName}
               onChange={handleChange}
               placeholder="Doe"
+              maxLength={50}
               disabled={loading}
             />
           </div>
@@ -132,6 +143,7 @@ const Register = () => {
             value={formData.username}
             onChange={handleChange}
             placeholder="johndoe"
+            maxLength={50}
             required
             disabled={loading}
           />
@@ -146,6 +158,7 @@ const Register = () => {
             value={formData.email}
             onChange={handleChange}
             placeholder="john@example.com"
+            maxLength={255}
             required
             disabled={loading}
           />
@@ -160,6 +173,7 @@ const Register = () => {
             value={formData.phone}
             onChange={handleChange}
             placeholder="+1234567890"
+            maxLength={20}
             required
             disabled={loading}
           />
@@ -174,10 +188,12 @@ const Register = () => {
             name="password"
             value={formData.password}
             onChange={handleChange}
-            placeholder="At least 6 characters"
+            placeholder="At least 8 characters"
+            maxLength={128}
             required
             disabled={loading}
           />
+          <small>Use a mix of letters, numbers, and symbols for a strong password.</small>
         </div>
 
         <div className="form-group">
@@ -189,6 +205,7 @@ const Register = () => {
             value={formData.confirmPassword}
             onChange={handleChange}
             placeholder="Re-enter password"
+            maxLength={128}
             required
             disabled={loading}
           />

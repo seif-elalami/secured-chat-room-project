@@ -1,60 +1,64 @@
 import axios from 'axios';
+import { getCSRFToken } from './security';
+import Cookies from 'js-cookie';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000';
-
-const isLikelyJwt = (value) =>
-  typeof value === 'string' && value.split('.').length === 3;
-
-const clearStoredSession = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-};
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
-// Add token to requests if available
+
+// ── Security: Request Interceptor ─────────────────────────────────────────
+// 1. Reads JWT from sessionStorage (cleared automatically on tab close)
+//    instead of localStorage — reduces token theft window.
+// 2. Injects X-CSRF-Token on every state-changing request (POST/PUT/DELETE/PATCH)
+//    to protect against Cross-Site Request Forgery attacks.
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-
-    if (token && isLikelyJwt(token)) {
+    const token = sessionStorage.getItem('token');
+    if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-    } else if (token) {
-      clearStoredSession();
+    }
+
+    // Attach CSRF token for state-changing methods
+    const stateMutatingMethods = ['post', 'put', 'patch', 'delete'];
+    if (stateMutatingMethods.includes((config.method || '').toLowerCase())) {
+      // The backend has `csurf` active and sets a cookie via /csrf-token
+      const csrfCookie = Cookies.get('XSRF-TOKEN');
+      if (csrfCookie) {
+        config.headers['X-CSRF-Token'] = csrfCookie;
+      } else {
+        // Fallback for requests before cookie is set
+        config.headers['X-CSRF-Token'] = getCSRFToken();
+      }
     }
 
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
+// ── Security: Response Interceptor ─────────────────────────────────────────
+// Handles 401 Unauthorized globally:
+//  - Clears sessionStorage (removes stale/expired token)
+//  - Dispatches 'security:logout' so AuthContext redirects to /login
+//    without creating a circular import.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const status = error.response?.status;
-    const message = error.response?.data?.message;
-
-    if (
-      status === 401 &&
-      (message === 'Invalid token format' ||
-        message === 'Token has expired. Please log in again.' ||
-        message === 'Authentication failed' ||
-        message === 'Authorization header missing or invalid')
-    ) {
-      clearStoredSession();
+    if (error.response?.status === 401) {
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
+      window.dispatchEvent(new CustomEvent('security:logout'));
     }
-
     return Promise.reject(error);
   }
 );
+
 
 // Auth API calls
 export const authAPI = {
@@ -65,6 +69,7 @@ export const authAPI = {
 
   login: async (credentials) => {
     const response = await api.post('/auth/login', credentials);
+
     return response.data;
   },
 };

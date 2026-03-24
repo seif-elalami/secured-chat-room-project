@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { messageAPI, roomAPI, mediaAPI } from '../../services/api';
+import { sanitizeMessage } from '../../services/security';
 import '../../styles/AppShell.css';
 
 const REACTION_OPTIONS = ['👍', '❤️', '😂'];
@@ -40,25 +41,25 @@ const RoomPage = () => {
   const [selectedRoomId, setSelectedRoomId] = useState(roomId || '');
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [roomRoleInfo, setRoomRoleInfo] = useState(null);
-  
+
   const [messages, setMessages] = useState([]);
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [roomStats, setRoomStats] = useState(null);
-  
+
   const [messageDraft, setMessageDraft] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
-  
+
   const [activeMessageInfoId, setActiveMessageInfoId] = useState(null);
   const [messageReaders, setMessageReaders] = useState([]);
-  
+
   const [inviteCode, setInviteCode] = useState('');
   const [memberToAdd, setMemberToAdd] = useState('');
   const [promotion, setPromotion] = useState({ targetUserId: '', targetRole: 'moderator' });
   const [demotionUserId, setDemotionUserId] = useState('');
   const [roomSettings, setRoomSettings] = useState({ title: '', description: '', messagingPolicy: 'all_members', allowInvites: true, maxParticipants: 50 });
   const [inviteCodeDisplay, setInviteCodeDisplay] = useState('');
-  
+
   const [flash, setFlash] = useState({ type: '', message: '' });
   const [roomLoading, setRoomLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -66,7 +67,18 @@ const RoomPage = () => {
   const currentRole = roomRoleInfo?.currentUser?.role || 'member';
   const currentPermissions = roomRoleInfo?.currentUser?.permissions || {};
   const canSendMessages = roomRoleInfo?.currentUser?.canSendMessages ?? false;
-  const roomMembers = useMemo(() => roomRoleInfo?.allMembers || [], [roomRoleInfo]);
+
+  // Deduplicate room members by their unique ID (._id or .id)
+  const roomMembers = useMemo(() => {
+    const seen = new Set();
+    return (roomRoleInfo?.allMembers || []).filter(member => {
+      const id = member._id || member.id;
+      if (!id) return false;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [roomRoleInfo]);
 
   const visibleRoomTitle = useMemo(() => {
     if (!selectedRoom) return 'Choose a room';
@@ -146,22 +158,22 @@ const RoomPage = () => {
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('roomId', selectedRoomId);
-        
+
         const mediaRes = await mediaAPI.uploadToGallery(formData);
         const fileUrl = mediaRes.data?.data?.fileUrl || mediaRes.data?.media?.fileUrl || mediaRes.data?.fileUrl || mediaRes.data?.url;
-        
+
         if (fileUrl) {
-          await messageAPI.sendMessage({ 
-            roomId: selectedRoomId, 
+          await messageAPI.sendMessage({
+            roomId: selectedRoomId,
             content: fileUrl,
             type: 'image'
           });
         }
-        
+
         if (messageDraft.trim()) {
            await messageAPI.sendMessage({ roomId: selectedRoomId, content: messageDraft.trim() });
         }
-        
+
         setSelectedFile(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
       } else {
@@ -170,7 +182,7 @@ const RoomPage = () => {
       setMessageDraft('');
       await loadRoomContext(selectedRoomId);
       await loadRooms();
-    } catch (error) { showFlash('error', getErrorMessage(error, 'Could not send message')); } 
+    } catch (error) { showFlash('error', getErrorMessage(error, 'Could not send message')); }
     finally { setSendingMessage(false); }
   };
 
@@ -224,12 +236,12 @@ const RoomPage = () => {
   };
 
   const handleReaction = async (messageId, emoji) => {
-    try { await messageAPI.toggleReaction(messageId, emoji); await loadRoomContext(selectedRoomId); } 
+    try { await messageAPI.toggleReaction(messageId, emoji); await loadRoomContext(selectedRoomId); }
     catch (error) { showFlash('error', getErrorMessage(error, 'Could not update reaction')); }
   };
 
   const handlePinMessage = async (messageId) => {
-    try { await messageAPI.pinMessage(messageId); await loadRoomContext(selectedRoomId); showFlash('success', 'Pin state updated'); } 
+    try { await messageAPI.pinMessage(messageId); await loadRoomContext(selectedRoomId); showFlash('success', 'Pin state updated'); }
     catch (error) { showFlash('error', getErrorMessage(error, 'Could not change pin state')); }
   };
 
@@ -244,7 +256,7 @@ const RoomPage = () => {
 
   const handleDeleteMedia = async (messageId, mediaId) => {
     if (!window.confirm('Delete this media?')) return;
-    try { await messageAPI.deleteMedia(messageId, mediaId); await loadRoomContext(selectedRoomId); showFlash('success', 'Media deleted'); } 
+    try { await messageAPI.deleteMedia(messageId, mediaId); await loadRoomContext(selectedRoomId); showFlash('success', 'Media deleted'); }
     catch (error) { showFlash('error', getErrorMessage(error, 'Could not delete media')); }
   };
 
@@ -284,19 +296,19 @@ const RoomPage = () => {
   };
 
   const handleGenerateInvite = async () => {
-    try { 
-      const res = await roomAPI.generateInvite(selectedRoomId); 
+    try {
+      const res = await roomAPI.generateInvite(selectedRoomId);
       const code = res?.data?.inviteCode || res?.data?.inviteUrl || res?.inviteCode;
       if (code) setInviteCodeDisplay(code);
-      showFlash('success', 'Invite created'); 
+      showFlash('success', 'Invite created');
     }
     catch (error) { showFlash('error', getErrorMessage(error, 'Could not generate invite')); }
   };
 
   const handleFetchInvite = async () => {
-    try { 
-      const res = await roomAPI.getInvite(selectedRoomId); 
-      const invite = res?.data?.inviteCode || res?.data?.inviteUrl || res?.inviteCode; 
+    try {
+      const res = await roomAPI.getInvite(selectedRoomId);
+      const invite = res?.data?.inviteCode || res?.data?.inviteUrl || res?.inviteCode;
       if (invite) setInviteCodeDisplay(invite);
       else showFlash('error', 'No active invite found');
     }
@@ -304,10 +316,10 @@ const RoomPage = () => {
   };
 
   const handleRevokeInvite = async () => {
-    try { 
-      await roomAPI.revokeInvite(selectedRoomId); 
+    try {
+      await roomAPI.revokeInvite(selectedRoomId);
       setInviteCodeDisplay('');
-      showFlash('success', 'Invite revoked'); 
+      showFlash('success', 'Invite revoked');
     }
     catch (error) { showFlash('error', getErrorMessage(error, 'Could not revoke invite')); }
   };
@@ -376,7 +388,7 @@ const RoomPage = () => {
               <p className="workspace-section-title">Pinned Messages</p>
               <div className="pinned-list">
                 {pinnedMessages.map(entry => (
-                  <div key={entry._id} className="pinned-item"><strong>{entry.author?.username || 'Unknown'}:</strong> {entry.content}</div>
+                  <div key={entry._id} className="pinned-item"><strong>{entry.author?.username || 'Unknown'}:</strong> {sanitizeMessage(entry.content)}</div>
                 ))}
               </div>
             </div>
@@ -387,7 +399,7 @@ const RoomPage = () => {
               {roomLoading && <p className="workspace-muted">Loading room details...</p>}
               {!roomLoading && !selectedRoom && <p className="workspace-muted">No room selected yet.</p>}
               {!roomLoading && selectedRoom && messages.length === 0 && <p className="workspace-muted">No messages yet. Start the room conversation below.</p>}
-              
+
               {messages.map((entry) => {
                 const mine = getUserId(entry.author) === currentUserId;
                 const canModerate = !selectedRoom.isGroup || ['moderator', 'admin', 'creator'].includes(currentRole);
@@ -415,9 +427,28 @@ const RoomPage = () => {
                     </div>
                     <div className="message-body">
                       {entry.replyToContent?.content && (
-                        <div className="message-reply-preview">Replying to {entry.replyToContent.author?.username || 'a message'}: {entry.replyToContent.content}</div>
+                        <div className="message-reply-preview">Replying to {entry.replyToContent.author?.username || 'a message'}: {sanitizeMessage(entry.replyToContent.content)}</div>
                       )}
-                      <p>{entry.isDeleted ? '[Message deleted]' : entry.content}</p>
+                      {entry.isDeleted ? (
+                        <p className="workspace-muted" style={{ fontStyle: 'italic' }}>[Message deleted]</p>
+                      ) : (
+                        // Intelligently render file uploads as images or download buttons
+                        ((entry.type === 'image' || entry.type === 'file' || entry.content.includes('/uploads/')) && entry.content.startsWith('http')) ? (
+                          entry.content.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                            <div style={{ marginTop: '8px' }}>
+                              <img src={entry.content} alt="Attachment" style={{ maxWidth: '100%', borderRadius: '8px', maxHeight: '300px', objectFit: 'contain', cursor: 'pointer', border: '1px solid #333' }} onClick={() => window.open(entry.content, '_blank')} />
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: '8px' }}>
+                              <a href={entry.content} target="_blank" rel="noreferrer" className="workspace-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 16px', textDecoration: 'none', background: '#2c2c2c', border: '1px solid #444', borderRadius: '8px', color: '#fff', fontSize: '14px' }}>
+                                📄 View / Download Document
+                              </a>
+                            </div>
+                          )
+                        ) : (
+                          <p>{sanitizeMessage(entry.content)}</p>
+                        )
+                      )}
                       {entry.media && entry.media.length > 0 && (
                         <div className="message-media">
                           {entry.media.map(m => (
@@ -450,7 +481,7 @@ const RoomPage = () => {
                 );
               })}
             </div>
-            
+
             <form className="message-composer" onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '15px' }}>
               {selectedFile && (
                 <div style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(0,0,0,0.05)', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>

@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { authAPI, userAPI } from '../services/api';
+import { clearCSRFToken } from '../services/security';
 
 const AuthContext = createContext();
 const isLikelyJwt = (value) =>
@@ -19,9 +20,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing token on mount
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    // Check for existing token in sessionStorage (not localStorage)
+    const storedToken = sessionStorage.getItem('token');
+    const storedUser = sessionStorage.getItem('user');
 
     if (storedToken && storedUser && isLikelyJwt(storedToken)) {
       try {
@@ -37,15 +38,25 @@ export const AuthProvider = ({ children }) => {
     }
 
     setLoading(false);
+
+    // Listen for 401 auto-logout events from api.js
+    const handleSecurityLogout = () => {
+      logout();
+    };
+    window.addEventListener('security:logout', handleSecurityLogout);
+
+    return () => {
+      window.removeEventListener('security:logout', handleSecurityLogout);
+    };
   }, []);
 
   const updateSessionUser = (nextUser, nextToken = token) => {
     if (nextToken) {
-      localStorage.setItem('token', nextToken);
+      sessionStorage.setItem('token', nextToken);
       setToken(nextToken);
     }
 
-    localStorage.setItem('user', JSON.stringify(nextUser));
+    sessionStorage.setItem('user', JSON.stringify(nextUser));
     setUser(nextUser);
   };
 
@@ -84,8 +95,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    clearCSRFToken(); // Clear in-memory CSRF token securely
     setToken(null);
     setUser(null);
   };

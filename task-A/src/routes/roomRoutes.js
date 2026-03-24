@@ -10,11 +10,10 @@ import {
   deleteRoom,
   debugRoomArrays,
   getUserRoleInfo,
-
-  //  Controllers for RBAC:
   promoteMember,
   cleanRoomArrays,
-  demoteMember,updateRoomSettings,
+  demoteMember,
+  updateRoomSettings,
   getRoomStatistics,
   generateInviteLink,
   getInviteLink,
@@ -30,57 +29,198 @@ import {
   requireMemberManagement,
   requireRoomMember
 } from "../middleware/roomRoleMiddleware.js";
+import { body, param, query, validationResult } from "express-validator";
 
 const router = express.Router();
 
-//  Apply authMiddleware globally to all routes
+// Universal validation error handler
+function handleValidationErrors(req, res, next) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+}
 
+// Apply authMiddleware globally to all routes
 router.use(authMiddleware);
-
 
 // 🟢 ROOM CREATION & FETCHING
 
-router.post("/direct", createDirectRoom);        // Create direct DM room
-router.post("/", createRoom);                   // Create group room
-router.get("/", getUserRooms);                  // Get all rooms for user
-router.get("/:roomId", getRoomById);            // Get room details
-router.delete("/:roomId", deleteRoom);          // Delete room (creator only)
+router.post("/direct",
+  [
+    // For direct, you may require a target userId in body/params; add as needed
+    body("targetUserId").isMongoId().withMessage("targetUserId must be a valid Mongo ID"),
+    handleValidationErrors,
+  ],
+  createDirectRoom
+);
+
+router.post("/",
+  [
+    body("name").notEmpty().isString().withMessage("Room name must be provided"),
+    body("type").isIn(["group", "channel", "classroom"]).withMessage("Invalid room type"),
+    // Add more as your model requires (e.g., members list)
+    handleValidationErrors,
+  ],
+  createRoom
+);
+
+router.get("/", getUserRooms);
+
+router.get("/:roomId",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  getRoomById
+);
+
+router.delete("/:roomId",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  deleteRoom
+);
 
 // ======================================================
 // 🟠 MEMBER MANAGEMENT
 // ======================================================
-router.post("/:roomId/members", requireMemberManagement, addMember);  // Add member
-router.delete("/:roomId/members/:userId", removeMember);              // Remove member
+router.post("/:roomId/members",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    body("userId").isMongoId().withMessage("userId must be a valid Mongo ID"),
+    handleValidationErrors,
+  ],
+  requireMemberManagement,
+  addMember
+);
+
+router.delete("/:roomId/members/:userId",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    param("userId").isMongoId().withMessage("Invalid user ID"),
+    handleValidationErrors,
+  ],
+  removeMember
+);
 
 // ======================================================
 // 🔵 ROLE MANAGEMENT (PROMOTE / DEMOTE)
 // ======================================================
-// Promote user to moderator/admin (admin or creator)
-router.post("/:roomId/promote", promoteMember);
+router.post("/:roomId/promote",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    body("userId").isMongoId().withMessage("userId to promote required in body"),
+    handleValidationErrors,
+  ],
+  promoteMember
+);
 
-// Demote user (creator or higher admin)
-router.post("/:roomId/demote", demoteMember);
+router.post("/:roomId/demote",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    body("userId").isMongoId().withMessage("userId to demote required in body"),
+    handleValidationErrors,
+  ],
+  demoteMember
+);
 
-// Legacy test route (still works)
-router.post("/:roomId/promote/moderator/:userId", promoteToModerator);
+router.post("/:roomId/promote/moderator/:userId",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    param("userId").isMongoId().withMessage("Invalid user ID"),
+    handleValidationErrors,
+  ],
+  promoteToModerator
+);
 
 // ======================================================
 // 🟣 UTILITIES
 // ======================================================
-router.get("/:roomId/media", getRoomMedia);            // Get media in room
-router.get("/:roomId/debug-arrays", debugRoomArrays);  // Debug helper
-router.get("/:roomId/user-role", getUserRoleInfo);     // Get current user’s role in room
+router.get("/:roomId/media",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  getRoomMedia
+);
+
+router.get("/:roomId/debug-arrays",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  debugRoomArrays
+);
+
+router.get("/:roomId/user-role",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  getUserRoleInfo
+);
 
 // ======================================================
 // 🧪 TEST ROUTES (for local validation)
 // ======================================================
-router.post("/:roomId/clean-arrays", cleanRoomArrays);
-router.put("/:roomId/settings", updateRoomSettings);
-router.get("/:roomId/statistics", getRoomStatistics);
-router.post("/:roomId/invite", generateInviteLink);      // Generate new invite link
-router.get("/:roomId/invite", getInviteLink);            // Get current invite link
-router.delete("/:roomId/invite", revokeInviteLink);      // Revoke invite link
-router.post("/join/:inviteCode", joinViaInviteCode);     // join room via invitationCode
+router.post("/:roomId/clean-arrays",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  cleanRoomArrays
+);
 
+router.put("/:roomId/settings",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    // Add body checks for settings fields as needed
+    handleValidationErrors,
+  ],
+  updateRoomSettings
+);
+
+router.get("/:roomId/statistics",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  getRoomStatistics
+);
+
+router.post("/:roomId/invite",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  generateInviteLink
+);
+
+router.get("/:roomId/invite",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  getInviteLink
+);
+
+router.delete("/:roomId/invite",
+  [
+    param("roomId").isMongoId().withMessage("Invalid room ID"),
+    handleValidationErrors,
+  ],
+  revokeInviteLink
+);
+
+router.post("/join/:inviteCode",
+  [
+    param("inviteCode").isLength({ min: 6 }).withMessage("Invalid invite code"), // adjust length & format as needed
+    handleValidationErrors,
+  ],
+  joinViaInviteCode
+);
 
 export default router;

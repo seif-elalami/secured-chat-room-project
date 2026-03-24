@@ -650,7 +650,8 @@ export const addMember = async (req, res) => {
       });
     }
 
-    // ✅ 3. Prevent adding the same member twice
+
+    // Prevent adding the same member twice (robust)
     if (room.users.some(user => user.toString() === newMemberId.toString())) {
       return res.status(400).json({
         success: false,
@@ -658,7 +659,7 @@ export const addMember = async (req, res) => {
       });
     }
 
-    // ✅ 4. Check block relationship
+    // Check block relationship
     const blockRelationship = await User.findOne({
       $or: [
         { _id: currentUserId, blockedUsers: newMemberId },
@@ -673,9 +674,9 @@ export const addMember = async (req, res) => {
       });
     }
 
-    // ✅ 5. Add to room members
-    room.users.push(newMemberId);
-    await room.save();
+    // Only add the explicit new member, not the sender, and only on explicit add-member requests
+    await Room.findByIdAndUpdate(room._id, { $addToSet: { users: newMemberId } });
+    await room.reload();
 
     // ✅ 6. Populate roles
     await room.populate([
@@ -2480,16 +2481,11 @@ export const joinViaInviteCode = async (req, res) => {
       }
     }
 
-    // ✅ Add user to room
-    room.users.push(userId);
-    await room.save();
-
-    // ✅ Populate and return
-    const updatedRoom = await Room.findById(room._id)
-      .populate('users', 'username email')
-      .populate('admins', 'username email')
-      .populate('moderators', 'username email')
-      .populate('creator', 'username email');
+  await Room.findByIdAndUpdate(room._id, { $addToSet: { users: newMemberId } });
+const updatedRoom = await Room.findById(room._id)
+  .populate('users', 'username email')
+  .populate('admins', 'username email')
+  .populate('moderators', 'username email');
 
     console.log(`✅ User ${user.username} joined room ${room.title} via invite link`);
 
