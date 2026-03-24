@@ -101,6 +101,9 @@ app.use("/uploads", express.static(path.join(__dirname, "src", "uploads")));
 app.use("/notes", noteRoutes);
 app.use('/assignments', assignmentRoutes);
 app.use('/api/attachments', attachmentRoutes);
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 
 //  Basic Root Route
 app.get("/", (req, res) => {
