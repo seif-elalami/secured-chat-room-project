@@ -3,8 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AuthLayout from './AuthLayout';
 import '../../styles/Auth.css';
-// Add this import:
 import api from '../../services/api';
+import { validateInput } from '../../services/security';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -31,9 +31,12 @@ const Login = () => {
     setError('');
     setLoading(true);
 
-    // Validation
-    if (!formData.username || !formData.password) {
-      setError('Please fill in all fields');
+    // Advanced Validation limits (Defense in Depth)
+    const userVal = validateInput(formData.username, { required: true, maxLength: 50 });
+    const passVal = validateInput(formData.password, { required: true, maxLength: 128 });
+
+    if (!userVal.valid || !passVal.valid) {
+      setError(userVal.error || passVal.error);
       setLoading(false);
       return;
     }
@@ -74,6 +77,7 @@ const Login = () => {
             value={formData.username}
             onChange={handleChange}
             placeholder="Enter your username"
+            maxLength={50}
             disabled={loading}
           />
         </div>
@@ -87,6 +91,7 @@ const Login = () => {
             value={formData.password}
             onChange={handleChange}
             placeholder="Enter your password"
+            maxLength={128}
             disabled={loading}
           />
         </div>

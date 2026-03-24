@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { messageAPI, roomAPI, mediaAPI } from '../../services/api';
+import { sanitizeMessage } from '../../services/security';
 import '../../styles/AppShell.css';
 
 const REACTION_OPTIONS = ['👍', '❤️', '😂'];
@@ -387,7 +388,7 @@ const RoomPage = () => {
               <p className="workspace-section-title">Pinned Messages</p>
               <div className="pinned-list">
                 {pinnedMessages.map(entry => (
-                  <div key={entry._id} className="pinned-item"><strong>{entry.author?.username || 'Unknown'}:</strong> {entry.content}</div>
+                  <div key={entry._id} className="pinned-item"><strong>{entry.author?.username || 'Unknown'}:</strong> {sanitizeMessage(entry.content)}</div>
                 ))}
               </div>
             </div>
@@ -426,9 +427,28 @@ const RoomPage = () => {
                     </div>
                     <div className="message-body">
                       {entry.replyToContent?.content && (
-                        <div className="message-reply-preview">Replying to {entry.replyToContent.author?.username || 'a message'}: {entry.replyToContent.content}</div>
+                        <div className="message-reply-preview">Replying to {entry.replyToContent.author?.username || 'a message'}: {sanitizeMessage(entry.replyToContent.content)}</div>
                       )}
-                      <p>{entry.isDeleted ? '[Message deleted]' : entry.content}</p>
+                      {entry.isDeleted ? (
+                        <p className="workspace-muted" style={{ fontStyle: 'italic' }}>[Message deleted]</p>
+                      ) : (
+                        // Intelligently render file uploads as images or download buttons
+                        ((entry.type === 'image' || entry.type === 'file' || entry.content.includes('/uploads/')) && entry.content.startsWith('http')) ? (
+                          entry.content.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                            <div style={{ marginTop: '8px' }}>
+                              <img src={entry.content} alt="Attachment" style={{ maxWidth: '100%', borderRadius: '8px', maxHeight: '300px', objectFit: 'contain', cursor: 'pointer', border: '1px solid #333' }} onClick={() => window.open(entry.content, '_blank')} />
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: '8px' }}>
+                              <a href={entry.content} target="_blank" rel="noreferrer" className="workspace-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 16px', textDecoration: 'none', background: '#2c2c2c', border: '1px solid #444', borderRadius: '8px', color: '#fff', fontSize: '14px' }}>
+                                📄 View / Download Document
+                              </a>
+                            </div>
+                          )
+                        ) : (
+                          <p>{sanitizeMessage(entry.content)}</p>
+                        )
+                      )}
                       {entry.media && entry.media.length > 0 && (
                         <div className="message-media">
                           {entry.media.map(m => (

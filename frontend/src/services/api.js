@@ -1,5 +1,6 @@
 import axios from 'axios';
-import Cookies from "js-cookie";
+import { getCSRFToken } from './security';
+import Cookies from 'js-cookie';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000';
 
@@ -11,27 +12,53 @@ const api = axios.create({
 });
 
 
-// --- CSRF interceptor: send X-XSRF-TOKEN from cookie if present ---
+// ── Security: Request Interceptor ─────────────────────────────────────────
+// 1. Reads JWT from sessionStorage (cleared automatically on tab close)
+//    instead of localStorage — reduces token theft window.
+// 2. Injects X-CSRF-Token on every state-changing request (POST/PUT/DELETE/PATCH)
+//    to protect against Cross-Site Request Forgery attacks.
 api.interceptors.request.use(
   (config) => {
-    // JWT from localStorage
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-   // NEW: Attach CSRF token for state-changing requests
-    if (['post', 'put', 'patch', 'delete'].includes(config.method)) {
-      const csrfToken = Cookies.get('XSRF-TOKEN');
-      if (csrfToken) {
-        config.headers['X-XSRF-TOKEN'] = csrfToken;
+
+    // Attach CSRF token for state-changing methods
+    const stateMutatingMethods = ['post', 'put', 'patch', 'delete'];
+    if (stateMutatingMethods.includes((config.method || '').toLowerCase())) {
+      // The backend has `csurf` active and sets a cookie via /csrf-token
+      const csrfCookie = Cookies.get('XSRF-TOKEN');
+      if (csrfCookie) {
+        config.headers['X-CSRF-Token'] = csrfCookie;
+      } else {
+        // Fallback for requests before cookie is set
+        config.headers['X-CSRF-Token'] = getCSRFToken();
       }
     }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-await api.get('/csrf-token');
+// ── Security: Response Interceptor ─────────────────────────────────────────
+// Handles 401 Unauthorized globally:
+//  - Clears sessionStorage (removes stale/expired token)
+//  - Dispatches 'security:logout' so AuthContext redirects to /login
+//    without creating a circular import.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
+      window.dispatchEvent(new CustomEvent('security:logout'));
+    }
+    return Promise.reject(error);
+  }
+);
+
 
 // Auth API calls
 export const authAPI = {
