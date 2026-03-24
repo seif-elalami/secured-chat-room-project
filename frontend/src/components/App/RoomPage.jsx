@@ -53,7 +53,6 @@ const RoomPage = () => {
   const [activeMessageInfoId, setActiveMessageInfoId] = useState(null);
   const [messageReaders, setMessageReaders] = useState([]);
 
-  const [inviteCode, setInviteCode] = useState('');
   const [memberToAdd, setMemberToAdd] = useState('');
   const [promotion, setPromotion] = useState({ targetUserId: '', targetRole: 'moderator' });
   const [demotionUserId, setDemotionUserId] = useState('');

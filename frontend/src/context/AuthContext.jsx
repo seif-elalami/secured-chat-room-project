@@ -29,12 +29,12 @@ export const AuthProvider = ({ children }) => {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
       } catch (error) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
       }
     } else if (storedToken || storedUser) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
     }
 
     setLoading(false);

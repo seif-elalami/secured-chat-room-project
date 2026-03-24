@@ -79,16 +79,6 @@ const NotesPanel = ({ user, showFlash }) => {
     }
   };
   
-  const handleSync = async () => {
-    try {
-      await noteAPI.syncNotes({});
-      fetchNotes();
-      showFlash('success', 'Notes synchronized');
-    } catch (error) {
-      showFlash('error', 'Failed to sync notes');
-    }
-  };
-
   return (
     <div className="notes-panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       

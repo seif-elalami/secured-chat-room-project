@@ -3,8 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AuthLayout from './AuthLayout';
 import '../../styles/Auth.css';
-import api from '../../services/api';
-import { validateInput } from '../../services/security';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -77,19 +75,12 @@ const Register = () => {
       lastName: formData.lastName.trim(),
     };
 
-    try {
-      // --- CSRF Step: Get CSRF token cookie before POST ---
-      await api.get('/csrf-token');
-      // --- Register API call ---
-      const result = await register(registrationData);
+    const result = await register(registrationData);
 
-      if (result.success) {
-        navigate('/dashboard'); // Change to your main app route
-      } else {
-        setError(result.error);
-      }
-    } catch (err) {
-      setError('An error occurred during registration. Please try again.');
+    if (result.success) {
+      navigate('/dashboard');
+    } else {
+      setError(result.error);
     }
 
     setLoading(false);

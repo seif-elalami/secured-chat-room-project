@@ -59,15 +59,24 @@ api.interceptors.response.use(
   }
 );
 
+export const securityAPI = {
+  ensureCsrfCookie: async () => {
+    const response = await api.get('/csrf-token');
+    return response.data;
+  },
+};
+
 
 // Auth API calls
 export const authAPI = {
   register: async (userData) => {
+    await securityAPI.ensureCsrfCookie();
     const response = await api.post('/auth/register', userData);
     return response.data;
   },
 
   login: async (credentials) => {
+    await securityAPI.ensureCsrfCookie();
     const response = await api.post('/auth/login', credentials);
 
     return response.data;
