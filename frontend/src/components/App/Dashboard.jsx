@@ -323,12 +323,14 @@ const Dashboard = () => {
   const handleCreateDirectRoom = async (event) => {
     event.preventDefault();
     if (!directUserId.trim()) {
-      showFlash('error', 'Enter the other user ID');
+      showFlash('error', 'Enter the other user ID or username');
       return;
     }
 
     try {
-      const response = await roomAPI.createDirectRoom({ otherUserId: directUserId.trim() });
+      const rawValue = directUserId.trim();
+      const isMongoId = /^[a-f\d]{24}$/i.test(rawValue);
+      const response = await roomAPI.createDirectRoom(isMongoId ? { otherUserId: rawValue } : { username: rawValue });
       const nextRoomId = response?.data?._id;
       setDirectUserId('');
       const selectedId = await loadRooms(nextRoomId);

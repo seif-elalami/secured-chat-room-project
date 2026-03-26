@@ -144,9 +144,11 @@ const DashboardPage = () => {
 
   const handleCreateDirectRoom = async (event) => {
     event.preventDefault();
-    if (!directUserId.trim()) return showFlash('error', 'Enter the other user ID');
+    if (!directUserId.trim()) return showFlash('error', 'Enter the other user ID or username');
     try {
-      const response = await roomAPI.createDirectRoom({ otherUserId: directUserId.trim() });
+      const rawValue = directUserId.trim();
+      const isMongoId = /^[a-f\d]{24}$/i.test(rawValue);
+      const response = await roomAPI.createDirectRoom(isMongoId ? { otherUserId: rawValue } : { username: rawValue });
       setDirectUserId('');
       await loadRooms();
       showFlash('success', response.message || 'Direct room ready');
@@ -188,8 +190,8 @@ const DashboardPage = () => {
         </form>
 
         <form className="workspace-card" onSubmit={handleCreateDirectRoom}>
-          <p className="workspace-section-title">Open Direct Room by ID</p>
-          <input className="workspace-input" placeholder="Other user ID" value={directUserId} onChange={e => setDirectUserId(e.target.value)} />
+          <p className="workspace-section-title">Open Direct Room</p>
+          <input className="workspace-input" placeholder="Other user ID or username" value={directUserId} onChange={e => setDirectUserId(e.target.value)} />
           <button className="workspace-button" type="submit">Open Direct Chat</button>
         </form>
 

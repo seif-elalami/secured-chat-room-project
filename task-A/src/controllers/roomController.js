@@ -306,27 +306,27 @@ export const createRoom = async (req, res) => {
 
 export const createDirectRoom = async (req, res) => {
   try {
-    const { otherUserId } = req.body || {};
+    const { otherUserId, username } = req.body || {};
     const userId = req.user?.userId || req.user?.id || req.user?._id;
 
-    if (!otherUserId) {
+    if (!otherUserId && !username) {
       return res.status(400).json({
         success: false,
-        message: "Other user ID is required",
+        message: "Other user ID or username is required",
       });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
+    if (otherUserId && !mongoose.Types.ObjectId.isValid(otherUserId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid other user ID format",
       });
     }
 
-    const [currentUser, otherUser] = await Promise.all([
-      User.findById(userId),
-      User.findById(otherUserId),
-    ]);
+    const currentUser = await User.findById(userId);
+    const otherUser = otherUserId
+      ? await User.findById(otherUserId)
+      : await User.findOne({ username: String(username).trim().toLowerCase() });
 
     if (!currentUser || !otherUser) {
       return res.status(404).json({
@@ -335,17 +335,26 @@ export const createDirectRoom = async (req, res) => {
       });
     }
 
+    const resolvedOtherUserId = otherUser._id.toString();
+
+    if (resolvedOtherUserId === userId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot open a direct chat with yourself",
+      });
+    }
+
     const blockRelationship = await User.findOne({
       $or: [
-        { _id: userId, blockedUsers: otherUserId },
-        { _id: otherUserId, blockedUsers: userId },
+        { _id: userId, blockedUsers: resolvedOtherUserId },
+        { _id: resolvedOtherUserId, blockedUsers: userId },
       ],
     });
 
     if (blockRelationship) {
       const iBlockedThem = await User.findOne({
         _id: userId,
-        blockedUsers: otherUserId,
+        blockedUsers: resolvedOtherUserId,
       });
 
       return res.status(403).json({
@@ -359,7 +368,7 @@ export const createDirectRoom = async (req, res) => {
     // ✅ CORRECT: Use 'users' field for query
     const existingRoom = await Room.findOne({
       isGroup: false,
-      users: { $all: [userId, otherUserId], $size: 2 },
+      users: { $all: [userId, resolvedOtherUserId], $size: 2 },
     }).populate("users", "username email");
 
     if (existingRoom) {
@@ -372,7 +381,7 @@ export const createDirectRoom = async (req, res) => {
 
     const room = new Room({
       isGroup: false,
-      users: [userId, otherUserId], // ✅ CORRECT: Use 'people' field
+      users: [userId, resolvedOtherUserId],
       title: `Chat with ${otherUser.username}`,
     });
 
@@ -614,7 +623,7 @@ export const getRoomById = async (req, res) => {
 export const addMember = async (req, res) => {
   try {
     const { roomId } = req.params;
-    const { userId: newMemberId } = req.body;
+    const { userId: newMemberId, username } = req.body;
     const currentUserId = req.user?.userId || req.user?.id || req.user?._id;
 
     const room = await Room.findById(roomId);
@@ -641,8 +650,26 @@ export const addMember = async (req, res) => {
       });
     }
 
-    // ✅ 2. Check if new member exists
-    const newMember = await User.findById(newMemberId);
+    let newMember = null;
+    if (newMemberId) {
+      if (!mongoose.Types.ObjectId.isValid(newMemberId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid user ID format",
+        });
+      }
+      newMember = await User.findById(newMemberId);
+    } else if (username) {
+      newMember = await User.findOne({
+        username: String(username).trim().toLowerCase(),
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "User ID or username is required",
+      });
+    }
+
     if (!newMember) {
       return res.status(404).json({
         success: false,
@@ -652,7 +679,7 @@ export const addMember = async (req, res) => {
 
 
     // Prevent adding the same member twice (robust)
-    if (room.users.some(user => user.toString() === newMemberId.toString())) {
+    if (room.users.some(user => user.toString() === newMember._id.toString())) {
       return res.status(400).json({
         success: false,
         message: "User is already a member of this room",
@@ -662,8 +689,8 @@ export const addMember = async (req, res) => {
     // Check block relationship
     const blockRelationship = await User.findOne({
       $or: [
-        { _id: currentUserId, blockedUsers: newMemberId },
-        { _id: newMemberId, blockedUsers: currentUserId },
+        { _id: currentUserId, blockedUsers: newMember._id },
+        { _id: newMember._id, blockedUsers: currentUserId },
       ],
     });
 
@@ -675,7 +702,7 @@ export const addMember = async (req, res) => {
     }
 
     // Only add the explicit new member, not the sender, and only on explicit add-member requests
-    await Room.findByIdAndUpdate(room._id, { $addToSet: { users: newMemberId } });
+    await Room.findByIdAndUpdate(room._id, { $addToSet: { users: newMember._id } });
     await room.reload();
 
     // ✅ 6. Populate roles

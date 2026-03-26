@@ -522,7 +522,7 @@ const RoomPage = () => {
           {selectedRoom.isGroup && currentPermissions.canManageMembers && (
             <form className="workspace-card" onSubmit={handleAddMember} style={{ marginBottom: '20px' }}>
               <p className="workspace-section-title">Add Member</p>
-              <input className="workspace-input" value={memberToAdd} onChange={(e) => setMemberToAdd(e.target.value)} placeholder="User ID" />
+              <input className="workspace-input" value={memberToAdd} onChange={(e) => setMemberToAdd(e.target.value)} placeholder="User ID or username" />
               <button className="workspace-button" type="submit">Add Member</button>
             </form>
           )}

@@ -49,8 +49,10 @@ router.use(authMiddleware);
 
 router.post("/direct",
   [
-    // For direct, you may require a target userId in body/params; add as needed
-    body("targetUserId").isMongoId().withMessage("targetUserId must be a valid Mongo ID"),
+    body().custom((value) => {
+      if (value?.otherUserId || value?.username) return true;
+      throw new Error("Provide otherUserId or username");
+    }),
     handleValidationErrors,
   ],
   createDirectRoom
@@ -90,7 +92,10 @@ router.delete("/:roomId",
 router.post("/:roomId/members",
   [
     param("roomId").isMongoId().withMessage("Invalid room ID"),
-    body("userId").isMongoId().withMessage("userId must be a valid Mongo ID"),
+    body().custom((value) => {
+      if (value?.userId || value?.username) return true;
+      throw new Error("Provide userId or username");
+    }),
     handleValidationErrors,
   ],
   requireMemberManagement,

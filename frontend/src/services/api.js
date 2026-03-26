@@ -156,8 +156,10 @@ export const roomAPI = {
     return response.data;
   },
 
-  addMember: async (roomId, userId) => {
-    const response = await api.post(`/rooms/${roomId}/members`, { userId });
+  addMember: async (roomId, identifier) => {
+    const trimmed = identifier.trim();
+    const isMongoId = /^[a-f\d]{24}$/i.test(trimmed);
+    const response = await api.post(`/rooms/${roomId}/members`, isMongoId ? { userId: trimmed } : { username: trimmed });
     return response.data;
   },
 
